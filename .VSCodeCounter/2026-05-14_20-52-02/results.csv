@@ -1,0 +1,56 @@
+"filename", "language", "Markdown", "Shell Script", "Python", "YAML", "TypeScript", "CSS", "JSON", "TypeScript JSX", "Dotenv", "JSON with Comments", "Docker", "HTML", "XML", "comment", "blank", "total"
+"/Users/fukunugget/dev/vision-inteligente-project/Dockerfile", "Docker", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 19, 0, 0, 0, 2, 21
+"/Users/fukunugget/dev/vision-inteligente-project/README.md", "Markdown", 247, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 79, 326
+"/Users/fukunugget/dev/vision-inteligente-project/cloudbuild.yaml", "YAML", 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 15
+"/Users/fukunugget/dev/vision-inteligente-project/config/inspection.json", "JSON", 0, 0, 0, 0, 0, 0, 39, 0, 0, 0, 0, 0, 0, 0, 1, 40
+"/Users/fukunugget/dev/vision-inteligente-project/data/README_DATASET.md", "Markdown", 51, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 69
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/__init__.py", "Python", 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 5
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/anomaly_reference.py", "Python", 0, 0, 531, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 83, 614
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cli.py", "Python", 0, 0, 384, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 35, 419
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/__init__.py", "Python", 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 3, 6
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/app.py", "Python", 0, 0, 217, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 41, 258
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/config.py", "Python", 0, 0, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 54
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/datasets.py", "Python", 0, 0, 176, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, 207
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/guidance.py", "Python", 0, 0, 140, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 164
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/inspector_training.py", "Python", 0, 0, 151, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 169
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/pipeline.py", "Python", 0, 0, 226, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 250
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/public_datasets.py", "Python", 0, 0, 129, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 22, 151
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/recipes.py", "Python", 0, 0, 77, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 92
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/schemas.py", "Python", 0, 0, 236, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 61, 297
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/segmenter.py", "Python", 0, 0, 112, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 127
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/segmenter_trainer.py", "Python", 0, 0, 47, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 59
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/storage.py", "Python", 0, 0, 189, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 25, 214
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/store.py", "Python", 0, 0, 107, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 28, 135
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/trainer.py", "Python", 0, 0, 94, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 114
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/training.py", "Python", 0, 0, 105, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 113
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/dataset.py", "Python", 0, 0, 193, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 38, 231
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/decision.py", "Python", 0, 0, 85, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 24, 109
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/golden_reference.py", "Python", 0, 0, 385, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 71, 456
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/model_suite.py", "Python", 0, 0, 382, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 45, 427
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/models.py", "Python", 0, 0, 158, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 37, 195
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/mold_segmenter.py", "Python", 0, 0, 271, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27, 298
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/piece_inspector.py", "Python", 0, 0, 90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 101
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/yolo_export.py", "Python", 0, 0, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 78
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/yolo_runtime.py", "Python", 0, 0, 65, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 80
+"/Users/fukunugget/dev/vision-inteligente-project/scripts/deploy_cloud_run.sh", "Shell Script", 0, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 6, 47
+"/Users/fukunugget/dev/vision-inteligente-project/scripts/gcloud_bootstrap.sh", "Shell Script", 0, 69, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 13, 83
+"/Users/fukunugget/dev/vision-inteligente-project/tests/test_anomaly_reference.py", "Python", 0, 0, 115, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 138
+"/Users/fukunugget/dev/vision-inteligente-project/tests/test_cli.py", "Python", 0, 0, 84, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 96
+"/Users/fukunugget/dev/vision-inteligente-project/tests/test_cloud_api.py", "Python", 0, 0, 350, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 54, 404
+"/Users/fukunugget/dev/vision-inteligente-project/tests/test_config.py", "Python", 0, 0, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 32
+"/Users/fukunugget/dev/vision-inteligente-project/tests/test_decision.py", "Python", 0, 0, 48, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 61
+"/Users/fukunugget/dev/vision-inteligente-project/tests/test_golden_reference.py", "Python", 0, 0, 126, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 29, 155
+"/Users/fukunugget/dev/vision-inteligente-project/tests/test_model_suite.py", "Python", 0, 0, 120, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 135
+"/Users/fukunugget/dev/vision-inteligente-project/tests/test_split.py", "Python", 0, 0, 25, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 31
+"/Users/fukunugget/dev/vision-inteligente-project/web/.env", "Dotenv", 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 1, 4
+"/Users/fukunugget/dev/vision-inteligente-project/web/index.html", "HTML", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 0, 1, 13
+"/Users/fukunugget/dev/vision-inteligente-project/web/package-lock.json", "JSON", 0, 0, 0, 0, 0, 0, 1995, 0, 0, 0, 0, 0, 0, 0, 1, 1996
+"/Users/fukunugget/dev/vision-inteligente-project/web/package.json", "JSON", 0, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0, 1, 25
+"/Users/fukunugget/dev/vision-inteligente-project/web/src/main.tsx", "TypeScript JSX", 0, 0, 0, 0, 0, 0, 0, 1230, 0, 0, 0, 0, 0, 0, 108, 1338
+"/Users/fukunugget/dev/vision-inteligente-project/web/src/styles.css", "CSS", 0, 0, 0, 0, 0, 777, 0, 0, 0, 0, 0, 0, 0, 0, 140, 917
+"/Users/fukunugget/dev/vision-inteligente-project/web/src/utils/supabase.ts", "TypeScript", 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 7
+"/Users/fukunugget/dev/vision-inteligente-project/web/src/vite-env.d.ts", "TypeScript", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 2
+"/Users/fukunugget/dev/vision-inteligente-project/web/tsconfig.json", "JSON with Comments", 0, 0, 0, 0, 0, 0, 0, 0, 0, 21, 0, 0, 0, 0, 1, 22
+"/Users/fukunugget/dev/vision-inteligente-project/web/vite.config.ts", "TypeScript", 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 15
+"/Users/fukunugget/dev/vision-inteligente-project/yolov8n-seg.pt", "XML", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 47587, 0, 206, 47793
+"Total", "-", 298, 109, 5561, 13, 17, 777, 2058, 1230, 3, 21, 19, 12, 47587, 5, 1498, 59208

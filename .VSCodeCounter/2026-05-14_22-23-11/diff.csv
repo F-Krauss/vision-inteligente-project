@@ -1,0 +1,6 @@
+"filename", "language", "Python", "TypeScript JSX", "CSS", "comment", "blank", "total"
+"/Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/public_datasets.py", "Python", 113, 0, 0, 0, 11, 124
+"/Users/fukunugget/dev/vision-inteligente-project/tests/test_cloud_api.py", "Python", 63, 0, 0, 0, 6, 69
+"/Users/fukunugget/dev/vision-inteligente-project/web/src/main.tsx", "TypeScript JSX", 0, 732, 0, 0, 62, 794
+"/Users/fukunugget/dev/vision-inteligente-project/web/src/styles.css", "CSS", 0, 0, 400, 0, 70, 470
+"Total", "-", 176, 732, 400, 0, 149, 1457

@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+runs/
+models/*.pt
+data/raw/
+data/yolo/
+data/cloud_state/
+web/node_modules/
+web/dist/
+reports/*.json
+reports/cloud_evidence/

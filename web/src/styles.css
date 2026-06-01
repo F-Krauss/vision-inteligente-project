@@ -1,0 +1,1480 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #f5f7fa;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #111827;
+  color: #e5edf7;
+  padding: 22px 18px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 34px;
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.brand small {
+  display: block;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+nav {
+  display: grid;
+  gap: 8px;
+}
+
+nav button {
+  border: 0;
+  background: transparent;
+  color: #cbd5e1;
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+nav button.active,
+nav button:hover {
+  background: #1f2937;
+  color: #fff;
+}
+
+.workspace {
+  padding: 24px;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+h2 {
+  margin-top: 14px;
+  font-size: 21px;
+}
+
+.topbar p {
+  margin-top: 6px;
+  color: #64748b;
+}
+
+.primary {
+  border: 0;
+  background: #1d4ed8;
+  color: #fff;
+  border-radius: 7px;
+  padding: 11px 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #172033;
+  border-radius: 7px;
+  padding: 10px 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.dangerButton {
+  border: 1px solid #fecaca;
+  background: #fff;
+  color: #991b1b;
+  border-radius: 7px;
+  padding: 10px 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primary:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.secondary:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
+  align-items: stretch;
+}
+
+.captureLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.captureMoldSelect {
+  max-width: 420px;
+  margin-bottom: 18px;
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.capture {
+  padding: 16px;
+}
+
+.captureHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.status,
+.resultBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.idle,
+.uploading,
+.running {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.correct {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.review {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.retake_photo,
+.error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.dropzone {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  min-height: 460px;
+  border: 1px dashed #94a3b8;
+  border-radius: 7px;
+  background: #edf2f7;
+  cursor: pointer;
+}
+
+.dropzone input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  cursor: pointer;
+}
+
+.dropzone > span {
+  color: #475569;
+  font-weight: 700;
+}
+
+.dropzone img {
+  width: 100%;
+  height: 100%;
+  max-height: 540px;
+  object-fit: contain;
+  display: block;
+}
+
+.captureStill {
+  display: grid;
+  gap: 12px;
+}
+
+.stillPreview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  min-height: 460px;
+  border: 1px dashed #94a3b8;
+  border-radius: 7px;
+  background: #edf2f7;
+  color: #475569;
+  font-weight: 800;
+}
+
+.stillPreview img {
+  width: 100%;
+  height: 100%;
+  max-height: 540px;
+  object-fit: contain;
+  display: block;
+}
+
+.fileButton {
+  position: relative;
+  overflow: hidden;
+}
+
+.fileButton input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.cameraBox {
+  display: grid;
+  gap: 12px;
+}
+
+.cameraStage video {
+  width: 100%;
+  height: 100%;
+  max-height: 540px;
+  object-fit: contain;
+  display: block;
+  background: #0f172a;
+}
+
+.liveMoldPolygon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.liveMoldPolygon polygon {
+  fill: rgba(34, 197, 94, 0.18);
+  stroke: #22c55e;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.cameraActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.fullscreenCamera {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: #07111f;
+  color: #fff;
+}
+
+.fullscreenTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.fullscreenTop strong,
+.fullscreenTop span {
+  display: block;
+}
+
+.fullscreenTop strong {
+  font-size: 18px;
+}
+
+.fullscreenTop span {
+  margin-top: 4px;
+  color: #cbd5e1;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.fullscreenStageWrap {
+  min-height: 0;
+  display: grid;
+}
+
+.fullscreenStageWrap .cameraStage {
+  min-height: 0;
+  height: 100%;
+  border-style: solid;
+  border-color: rgba(148, 163, 184, 0.45);
+  background: #020617;
+  cursor: default;
+}
+
+.fullscreenStageWrap .cameraStage video,
+.fullscreenStageWrap .cameraStage img {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+}
+
+.fullscreenGuidance {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(220px, 0.6fr) auto;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid rgba(254, 202, 202, 0.45);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(127, 29, 29, 0.38);
+}
+
+.fullscreenGuidance.isOk {
+  border-color: rgba(187, 247, 208, 0.55);
+  background: rgba(20, 83, 45, 0.42);
+}
+
+.fullscreenGuidance strong,
+.fullscreenGuidance span {
+  display: block;
+}
+
+.fullscreenGuidance span {
+  margin-top: 4px;
+  color: #dbeafe;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.fullscreenGuidance ul {
+  margin: 0;
+  color: #f8fafc;
+}
+
+.readinessMeter {
+  display: flex;
+  gap: 6px;
+}
+
+.readinessMeter i {
+  width: 30px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.34);
+}
+
+.readinessMeter i.ready {
+  background: #22c55e;
+}
+
+.guidanceBox {
+  border: 1px solid #fecaca;
+  background: #fff7f7;
+  color: #7f1d1d;
+  border-radius: 7px;
+  padding: 12px;
+}
+
+.guidanceBox span {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.guidanceBox.isOk {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #14532d;
+}
+
+.guidanceBox ul {
+  margin-top: 8px;
+}
+
+.frame {
+  position: absolute;
+  inset: 9%;
+  border: 2px solid rgba(37, 99, 235, 0.78);
+  border-radius: 7px;
+  pointer-events: none;
+}
+
+.frame i {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-color: #22c55e;
+  border-style: solid;
+}
+
+.frame i:nth-child(1) {
+  top: -2px;
+  left: -2px;
+  border-width: 4px 0 0 4px;
+}
+
+.frame i:nth-child(2) {
+  top: -2px;
+  right: -2px;
+  border-width: 4px 4px 0 0;
+}
+
+.frame i:nth-child(3) {
+  bottom: -2px;
+  left: -2px;
+  border-width: 0 0 4px 4px;
+}
+
+.frame i:nth-child(4) {
+  right: -2px;
+  bottom: -2px;
+  border-width: 0 4px 4px 0;
+}
+
+.hintRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.hintRow span {
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.formPanel {
+  padding: 18px;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+input,
+select {
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  padding: 11px 12px;
+  color: #111827;
+  background: #fff;
+}
+
+select {
+  width: 100%;
+  cursor: pointer;
+}
+
+.resultPanel {
+  margin-top: 18px;
+  padding: 18px;
+}
+
+.resultVertical {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.resultSummary {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.resultSummary p {
+  margin-top: 6px;
+  color: #475569;
+}
+
+.evaluationImage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  min-height: 260px;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #cbd5e1;
+  text-align: center;
+}
+
+.evaluationImage img {
+  width: 100%;
+  display: block;
+}
+
+.missingPieceOverlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.missingPieceOverlay polygon {
+  fill: rgba(220, 38, 38, 0.22);
+  stroke: #dc2626;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.resultMetrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.resultGuidance {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 4px;
+}
+
+ul {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: #475569;
+}
+
+li + li {
+  margin-top: 6px;
+}
+
+.metrics {
+  display: grid;
+  gap: 10px;
+}
+
+.metrics div {
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 12px;
+}
+
+.metrics span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.metrics strong {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.evidence {
+  min-height: 180px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #64748b;
+  text-align: center;
+  padding: 12px;
+}
+
+.evidence img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.managementGrid {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 18px;
+}
+
+.moldRegister {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(220px, 360px) auto;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
+}
+
+.moldRegister strong,
+.moldRegister span {
+  display: block;
+}
+
+.moldRegister span {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.inlineError {
+  padding: 0 0 14px;
+}
+
+.moldsWorkspace {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.moldList {
+  display: grid;
+  gap: 10px;
+}
+
+.moldRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+  color: #172033;
+  text-align: left;
+  cursor: pointer;
+}
+
+.moldRow.active {
+  border-color: #2563eb;
+  box-shadow: inset 4px 0 0 #2563eb;
+}
+
+.moldRow strong,
+.moldRow small {
+  display: block;
+}
+
+.moldRow small {
+  margin-top: 5px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.moldState {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.moldState.ready {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.moldState.training {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.moldState.no_model {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.moldState.needs_data {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.emptyMolds {
+  display: grid;
+  gap: 6px;
+  border: 1px dashed #94a3b8;
+  border-radius: 8px;
+  padding: 18px;
+  color: #64748b;
+  background: #fff;
+}
+
+.moldDetail {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.moldHero {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  padding: 18px;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.moldHero > div {
+  min-width: 0;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.editMoldName {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  gap: 8px;
+  margin-top: 10px;
+  max-width: 680px;
+}
+
+.moldHero h2 {
+  margin-top: 10px;
+  font-size: 26px;
+}
+
+.moldHero p {
+  margin-top: 6px;
+  color: #64748b;
+}
+
+.userMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.userMetrics div {
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+}
+
+.userMetrics span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.userMetrics strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 20px;
+  overflow-wrap: anywhere;
+}
+
+.chartsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.chartPanel,
+.uploadPanel,
+.testPanel {
+  padding: 18px;
+}
+
+.progressSteps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.progressSteps span {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  color: #64748b;
+  background: #f8fafc;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.progressSteps span.done {
+  border-color: #86efac;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.qualityBars {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.qualityBars div {
+  display: grid;
+  grid-template-columns: 150px minmax(120px, 1fr) 74px;
+  align-items: center;
+  gap: 12px;
+}
+
+.qualityBars span,
+.qualityBars strong {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.qualityBars i {
+  overflow: hidden;
+  height: 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.qualityBars b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+}
+
+.moldActionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.uploadPanel {
+  display: grid;
+  gap: 14px;
+}
+
+.uploadColumns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-width: 0;
+}
+
+.fileTile {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  border: 1px dashed #94a3b8;
+  border-radius: 8px;
+  padding: 14px;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.fileTile span,
+.fileTile strong,
+.fileTile small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.fileTile span {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.fileTile strong {
+  color: #172033;
+  font-size: 16px;
+}
+
+.fileTile small {
+  color: #64748b;
+}
+
+.fileTile input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.testGrid {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) minmax(220px, 0.45fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.testControls {
+  display: grid;
+  gap: 10px;
+}
+
+.pendingResult {
+  grid-column: 2 / -1;
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  text-align: center;
+  padding: 18px;
+}
+
+.pendingResult strong {
+  color: #172033;
+}
+
+.pendingResult p {
+  margin-top: 6px;
+}
+
+.resultCopy {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.resultCopy p {
+  color: #64748b;
+}
+
+.historyList {
+  display: grid;
+  gap: 12px;
+}
+
+.historyRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+}
+
+.segmenterWorkspace {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(360px, 1fr) minmax(220px, 280px);
+  gap: 18px;
+  align-items: start;
+}
+
+.segmenterSetup,
+.polygonEditor,
+.trainingStatus {
+  padding: 18px;
+}
+
+.segmenterSetup {
+  display: grid;
+  gap: 14px;
+}
+
+.polygonEditor {
+  min-width: 0;
+}
+
+.trainingStatus {
+  display: grid;
+  gap: 12px;
+}
+
+.trainingStatus > strong {
+  font-size: 18px;
+}
+
+.trainingStatus .metricTile {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.trainingStatus .metricTile span,
+.trainingStatus .metricTile strong {
+  display: block;
+}
+
+.trainingStatus .metricTile span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.trainingStatus .metricTile strong {
+  margin-top: 6px;
+  color: #172033;
+}
+
+.historyRow strong,
+.historyRow small {
+  display: block;
+}
+
+.historyRow small {
+  margin-top: 4px;
+  color: #64748b;
+}
+
+.datasetGrid {
+  display: grid;
+  grid-template-columns: 360px minmax(360px, 0.9fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.recipeGrid {
+  display: grid;
+  grid-template-columns: 340px minmax(420px, 1fr) minmax(320px, 0.7fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.recipePanel {
+  padding: 18px;
+}
+
+.recipeSteps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.recipeStep {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.recipeStep span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.recipeStep strong {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+
+.recipeStep.ready {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.recipeStep.training {
+  border-color: #bae6fd;
+  background: #f0f9ff;
+}
+
+.recipeStep.missing {
+  border-color: #fecaca;
+  background: #fff7f7;
+}
+
+.candidateGrid {
+  display: grid;
+  gap: 12px;
+}
+
+.candidateCard {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.candidateCard.promoted {
+  border-color: #22c55e;
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.28);
+}
+
+.compactMetrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.compactError {
+  padding: 0;
+}
+
+.datasetCounts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.datasetCounts span {
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 10px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.maskPanel {
+  padding: 18px;
+}
+
+.maskPreview {
+  position: relative;
+  min-height: 320px;
+  border: 1px dashed #94a3b8;
+  border-radius: 7px;
+  background: #edf2f7;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #475569;
+  font-weight: 800;
+  text-align: center;
+}
+
+.maskPreview img {
+  width: 100%;
+  height: 100%;
+  max-height: 420px;
+  object-fit: contain;
+}
+
+.maskOverlay {
+  position: absolute;
+  border: 2px solid #22c55e;
+  background: rgba(34, 197, 94, 0.18);
+  box-shadow: 0 0 0 999px rgba(15, 23, 42, 0.34);
+  pointer-events: none;
+}
+
+.polygonCanvas {
+  cursor: crosshair;
+  user-select: none;
+  touch-action: none;
+}
+
+.polygonCanvas::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.28);
+  pointer-events: none;
+}
+
+.polygonCanvas > span {
+  position: relative;
+  z-index: 1;
+}
+
+.polygonOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.polygonOverlay polygon {
+  fill: rgba(34, 197, 94, 0.18);
+  stroke: #16a34a;
+  stroke-width: 0.55;
+  vector-effect: non-scaling-stroke;
+}
+
+.polygonOverlay polyline {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 0.7;
+  vector-effect: non-scaling-stroke;
+}
+
+.polygonOverlay circle {
+  fill: #fff;
+  stroke: #16a34a;
+  stroke-width: 0.8;
+  cursor: grab;
+  pointer-events: auto;
+  vector-effect: non-scaling-stroke;
+}
+
+.polygonOverlay circle:active {
+  cursor: grabbing;
+}
+
+.polygonToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.polygonToolbar span {
+  margin-right: auto;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.autoMaskOverlay {
+  position: absolute;
+  inset: 14%;
+  border: 2px solid #22c55e;
+  border-radius: 50% 42% 47% 40%;
+  background: rgba(34, 197, 94, 0.12);
+  box-shadow: 0 0 0 999px rgba(15, 23, 42, 0.28);
+  pointer-events: none;
+}
+
+.maskControls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.maskControls input {
+  padding: 0;
+}
+
+.tablePanel {
+  padding: 18px;
+  min-height: 420px;
+}
+
+.recordList {
+  display: grid;
+  gap: 12px;
+}
+
+.recordRow {
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  padding: 12px;
+}
+
+.recordRow strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.recordRow pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.emptyText,
+.errorText,
+.fieldNote {
+  color: #64748b;
+  padding: 32px 0;
+}
+
+.errorText {
+  color: #991b1b;
+}
+
+.fieldNote {
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.fieldNote.compact {
+  margin-top: 12px;
+}
+
+@media (max-width: 960px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .workspace {
+    padding: 18px;
+  }
+
+  .topbar,
+  .grid,
+  .captureLayout,
+  .resultPanel,
+  .managementGrid,
+  .datasetGrid,
+  .recipeGrid,
+  .moldRegister,
+  .moldsWorkspace,
+  .chartsGrid,
+  .moldActionGrid,
+  .testGrid,
+  .segmenterWorkspace,
+  .editMoldName {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .moldHero {
+    display: grid;
+  }
+
+  .userMetrics,
+  .uploadColumns,
+  .progressSteps,
+  .qualityBars div,
+  .historyRow {
+    grid-template-columns: 1fr;
+  }
+
+  .heroActions {
+    justify-content: flex-start;
+  }
+
+  .pendingResult {
+    grid-column: auto;
+  }
+
+  .dropzone {
+    min-height: 360px;
+  }
+
+  .stillPreview {
+    min-height: 360px;
+  }
+
+  .fullscreenCamera {
+    gap: 10px;
+  }
+
+  .fullscreenGuidance {
+    grid-template-columns: 1fr;
+  }
+
+  .resultMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .recipeSteps,
+  .compactMetrics {
+    grid-template-columns: 1fr;
+  }
+}

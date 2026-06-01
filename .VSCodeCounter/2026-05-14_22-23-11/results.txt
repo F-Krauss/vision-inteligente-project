@@ -1,0 +1,103 @@
+Date : 2026-05-14 22:23:11
+Directory : /Users/fukunugget/dev/vision-inteligente-project
+Total : 54 files,  59013 codes, 5 comments, 1647 blanks, all 60665 lines
+
+Languages
++--------------------+------------+------------+------------+------------+------------+
+| language           | files      | code       | comment    | blank      | total      |
++--------------------+------------+------------+------------+------------+------------+
+| XML                |          1 |     47,587 |          0 |        206 |     47,793 |
+| Python             |         36 |      5,737 |          2 |        929 |      6,668 |
+| JSON               |          3 |      2,058 |          0 |          3 |      2,061 |
+| TypeScript JSX     |          1 |      1,962 |          0 |        170 |      2,132 |
+| CSS                |          1 |      1,177 |          0 |        210 |      1,387 |
+| Markdown           |          2 |        298 |          0 |         97 |        395 |
+| Shell Script       |          2 |        109 |          2 |         19 |        130 |
+| JSON with Comments |          1 |         21 |          0 |          1 |         22 |
+| Docker             |          1 |         19 |          0 |          2 |         21 |
+| TypeScript         |          3 |         17 |          1 |          6 |         24 |
+| YAML               |          1 |         13 |          0 |          2 |         15 |
+| HTML               |          1 |         12 |          0 |          1 |         13 |
+| Dotenv             |          1 |          3 |          0 |          1 |          4 |
++--------------------+------------+------------+------------+------------+------------+
+
+Directories
++----------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                         | files      | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                            |         54 |     59,013 |          5 |      1,647 |     60,665 |
+| . (Files)                                                                                    |          4 |     47,866 |          0 |        289 |     48,155 |
+| config                                                                                       |          1 |         39 |          0 |          1 |         40 |
+| data                                                                                         |          1 |         51 |          0 |         18 |         69 |
+| mold_inspection                                                                              |         28 |      4,780 |          2 |        765 |      5,547 |
+| mold_inspection (Files)                                                                      |         12 |      2,611 |          1 |        401 |      3,013 |
+| mold_inspection/cloud                                                                        |         16 |      2,169 |          1 |        364 |      2,534 |
+| scripts                                                                                      |          2 |        109 |          2 |         19 |        130 |
+| tests                                                                                        |          8 |        957 |          0 |        164 |      1,121 |
+| web                                                                                          |         10 |      5,211 |          1 |        391 |      5,603 |
+| web (Files)                                                                                  |          6 |      2,068 |          0 |          7 |      2,075 |
+| web/src                                                                                      |          4 |      3,143 |          1 |        384 |      3,528 |
+| web/src (Files)                                                                              |          3 |      3,139 |          1 |        381 |      3,521 |
+| web/src/utils                                                                                |          1 |          4 |          0 |          3 |          7 |
++----------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++----------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| filename                                                                                     | language           | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
+| /Users/fukunugget/dev/vision-inteligente-project/Dockerfile                                  | Docker             |         19 |          0 |          2 |         21 |
+| /Users/fukunugget/dev/vision-inteligente-project/README.md                                   | Markdown           |        247 |          0 |         79 |        326 |
+| /Users/fukunugget/dev/vision-inteligente-project/cloudbuild.yaml                             | YAML               |         13 |          0 |          2 |         15 |
+| /Users/fukunugget/dev/vision-inteligente-project/config/inspection.json                      | JSON               |         39 |          0 |          1 |         40 |
+| /Users/fukunugget/dev/vision-inteligente-project/data/README_DATASET.md                      | Markdown           |         51 |          0 |         18 |         69 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/__init__.py                 | Python             |          2 |          1 |          2 |          5 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/anomaly_reference.py        | Python             |        531 |          0 |         83 |        614 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cli.py                      | Python             |        384 |          0 |         35 |        419 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/__init__.py           | Python             |          2 |          1 |          3 |          6 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/app.py                | Python             |        217 |          0 |         41 |        258 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/config.py             | Python             |         48 |          0 |          6 |         54 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/datasets.py           | Python             |        176 |          0 |         31 |        207 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/guidance.py           | Python             |        140 |          0 |         24 |        164 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/inspector_training.py | Python             |        151 |          0 |         18 |        169 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/pipeline.py           | Python             |        226 |          0 |         24 |        250 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/public_datasets.py    | Python             |        242 |          0 |         33 |        275 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/recipes.py            | Python             |         77 |          0 |         15 |         92 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/schemas.py            | Python             |        236 |          0 |         61 |        297 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/segmenter.py          | Python             |        112 |          0 |         15 |        127 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/segmenter_trainer.py  | Python             |         47 |          0 |         12 |         59 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/storage.py            | Python             |        189 |          0 |         25 |        214 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/store.py              | Python             |        107 |          0 |         28 |        135 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/trainer.py            | Python             |         94 |          0 |         20 |        114 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/cloud/training.py           | Python             |        105 |          0 |          8 |        113 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/dataset.py                  | Python             |        193 |          0 |         38 |        231 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/decision.py                 | Python             |         85 |          0 |         24 |        109 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/golden_reference.py         | Python             |        385 |          0 |         71 |        456 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/model_suite.py              | Python             |        382 |          0 |         45 |        427 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/models.py                   | Python             |        158 |          0 |         37 |        195 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/mold_segmenter.py           | Python             |        271 |          0 |         27 |        298 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/piece_inspector.py          | Python             |         90 |          0 |         11 |        101 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/yolo_export.py              | Python             |         65 |          0 |         13 |         78 |
+| /Users/fukunugget/dev/vision-inteligente-project/mold_inspection/yolo_runtime.py             | Python             |         65 |          0 |         15 |         80 |
+| /Users/fukunugget/dev/vision-inteligente-project/scripts/deploy_cloud_run.sh                 | Shell Script       |         40 |          1 |          6 |         47 |
+| /Users/fukunugget/dev/vision-inteligente-project/scripts/gcloud_bootstrap.sh                 | Shell Script       |         69 |          1 |         13 |         83 |
+| /Users/fukunugget/dev/vision-inteligente-project/tests/test_anomaly_reference.py             | Python             |        115 |          0 |         23 |        138 |
+| /Users/fukunugget/dev/vision-inteligente-project/tests/test_cli.py                           | Python             |         84 |          0 |         12 |         96 |
+| /Users/fukunugget/dev/vision-inteligente-project/tests/test_cloud_api.py                     | Python             |        413 |          0 |         60 |        473 |
+| /Users/fukunugget/dev/vision-inteligente-project/tests/test_config.py                        | Python             |         26 |          0 |          6 |         32 |
+| /Users/fukunugget/dev/vision-inteligente-project/tests/test_decision.py                      | Python             |         48 |          0 |         13 |         61 |
+| /Users/fukunugget/dev/vision-inteligente-project/tests/test_golden_reference.py              | Python             |        126 |          0 |         29 |        155 |
+| /Users/fukunugget/dev/vision-inteligente-project/tests/test_model_suite.py                   | Python             |        120 |          0 |         15 |        135 |
+| /Users/fukunugget/dev/vision-inteligente-project/tests/test_split.py                         | Python             |         25 |          0 |          6 |         31 |
+| /Users/fukunugget/dev/vision-inteligente-project/web/.env                                    | Dotenv             |          3 |          0 |          1 |          4 |
+| /Users/fukunugget/dev/vision-inteligente-project/web/index.html                              | HTML               |         12 |          0 |          1 |         13 |
+| /Users/fukunugget/dev/vision-inteligente-project/web/package-lock.json                       | JSON               |      1,995 |          0 |          1 |      1,996 |
+| /Users/fukunugget/dev/vision-inteligente-project/web/package.json                            | JSON               |         24 |          0 |          1 |         25 |
+| /Users/fukunugget/dev/vision-inteligente-project/web/src/main.tsx                            | TypeScript JSX     |      1,962 |          0 |        170 |      2,132 |
+| /Users/fukunugget/dev/vision-inteligente-project/web/src/styles.css                          | CSS                |      1,177 |          0 |        210 |      1,387 |
+| /Users/fukunugget/dev/vision-inteligente-project/web/src/utils/supabase.ts                   | TypeScript         |          4 |          0 |          3 |          7 |
+| /Users/fukunugget/dev/vision-inteligente-project/web/src/vite-env.d.ts                       | TypeScript         |          0 |          1 |          1 |          2 |
+| /Users/fukunugget/dev/vision-inteligente-project/web/tsconfig.json                           | JSON with Comments |         21 |          0 |          1 |         22 |
+| /Users/fukunugget/dev/vision-inteligente-project/web/vite.config.ts                          | TypeScript         |         13 |          0 |          2 |         15 |
+| /Users/fukunugget/dev/vision-inteligente-project/yolov8n-seg.pt                              | XML                |     47,587 |          0 |        206 |     47,793 |
+| Total                                                                                        |                    |     59,013 |          5 |      1,647 |     60,665 |
++----------------------------------------------------------------------------------------------+--------------------+------------+------------+------------+------------+
