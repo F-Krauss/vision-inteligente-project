@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from mold_inspection.cloud.app import create_app
 from mold_inspection.cloud.config import CloudSettings
+from mold_inspection.cloud.store import _decode_firestore_nested_arrays, _encode_firestore_nested_arrays
 
 
 def test_cloud_api_upload_and_review_without_model(tmp_path: Path):
@@ -69,6 +70,129 @@ def test_cloud_api_crud_resource(tmp_path: Path):
     fetched = client.get("/v1/families/molde_a")
     assert fetched.status_code == 200
     assert fetched.json()["data"]["name"] == "Molde A"
+
+
+def test_firestore_nested_array_codec_preserves_missing_regions():
+    payload = {
+        "missing_regions": [[{"x": 0.1, "y": 0.2}, {"x": 0.3, "y": 0.4}]],
+        "findings": [{"region": [{"x": 0.1, "y": 0.2}]}],
+    }
+
+    encoded = _encode_firestore_nested_arrays(payload)
+
+    assert encoded["missing_regions"] == [{"nested_array_items": [{"x": 0.1, "y": 0.2}, {"x": 0.3, "y": 0.4}]}]
+    assert _decode_firestore_nested_arrays(encoded) == payload
+
+
+def test_cloud_api_mold_section_plan_persists_zone_views(tmp_path: Path):
+    settings = CloudSettings(local_state_dir=tmp_path / "state", evidence_dir=tmp_path / "evidence")
+    client = TestClient(create_app(settings))
+
+    response = client.post(
+        "/v1/mold-section-plans/molde_a",
+        json={
+            "family": "fam",
+            "mold_key": "molde_a",
+            "name": "Molde A",
+            "sections": [
+                {
+                    "id": "section_01_left",
+                    "zone_id": "zona_01_left",
+                    "label": "Zona 1 / izquierda",
+                    "zone_index": 1,
+                    "view": "left",
+                },
+                {
+                    "id": "section_01_right",
+                    "zone_id": "zona_01_right",
+                    "label": "Zona 1 / derecha",
+                    "zone_index": 1,
+                    "view": "right",
+                },
+                {
+                    "id": "section_02_front",
+                    "zone_id": "zona_02_front",
+                    "label": "Zona 2 / frente",
+                    "zone_index": 2,
+                    "view": "front",
+                },
+            ],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["family"] == "fam"
+    assert body["mold_key"] == "molde_a"
+    assert body["section_count"] == 3
+    assert body["required_count"] == 3
+    assert [section["zone_id"] for section in body["sections"]] == ["zona_01_left", "zona_01_right", "zona_02_front"]
+
+    fetched = client.get("/v1/mold-section-plans/molde_a?family=fam")
+    assert fetched.status_code == 200
+    assert fetched.json()["id"] == body["id"]
+
+    listed = client.get("/v1/mold-section-plans?family=fam")
+    assert listed.status_code == 200
+    assert [record["id"] for record in listed.json()] == [body["id"]]
+
+    zones = client.get("/v1/zones")
+    assert zones.status_code == 200
+    zone_lookup = {zone["id"]: zone for zone in zones.json()}
+    assert zone_lookup["zona_01_left"]["family"] == "fam"
+    assert zone_lookup["zona_01_left"]["view"] == "left"
+
+
+def test_cloud_api_mold_validation_session_requires_all_zone_views(tmp_path: Path):
+    settings = CloudSettings(local_state_dir=tmp_path / "state", evidence_dir=tmp_path / "evidence")
+    client = TestClient(create_app(settings))
+    plan = client.post(
+        "/v1/mold-section-plans/molde_a",
+        json={
+            "family": "fam",
+            "mold_key": "molde_a",
+            "sections": [
+                {"id": "section_01_left", "zone_id": "zona_01_left", "label": "Zona 1 / izquierda", "zone_index": 1, "view": "left"},
+                {"id": "section_01_right", "zone_id": "zona_01_right", "label": "Zona 1 / derecha", "zone_index": 1, "view": "right"},
+            ],
+        },
+    )
+    assert plan.status_code == 200
+
+    created = client.post("/v1/mold-validation-sessions", json={"family": "fam", "mold_key": "molde_a"})
+    assert created.status_code == 200
+    session = created.json()
+    assert session["status"] == "pending"
+    assert session["required_count"] == 2
+    assert set(session["missing_section_ids"]) == {"section_01_left", "section_01_right"}
+
+    left = client.post(
+        f"/v1/mold-validation-sessions/{session['id']}/sections/section_01_left",
+        json={"zone_id": "zona_01_left", "status": "correct", "inspection_id": "insp_left", "image_uri": "local://left.jpg"},
+    )
+    assert left.status_code == 200
+    body = left.json()
+    assert body["status"] == "in_progress"
+    assert body["completed_count"] == 1
+    assert body["missing_section_ids"] == ["section_01_right"]
+
+    right_retake = client.post(
+        f"/v1/mold-validation-sessions/{session['id']}/sections/section_01_right",
+        json={"zone_id": "zona_01_right", "status": "retake_photo", "inspection_id": "insp_right_bad"},
+    )
+    assert right_retake.status_code == 200
+    assert right_retake.json()["status"] == "in_progress"
+    assert right_retake.json()["missing_section_ids"] == ["section_01_right"]
+
+    right_review = client.post(
+        f"/v1/mold-validation-sessions/{session['id']}/sections/section_01_right",
+        json={"zone_id": "zona_01_right", "status": "review", "inspection_id": "insp_right_review"},
+    )
+    assert right_review.status_code == 200
+    complete = right_review.json()
+    assert complete["status"] == "complete"
+    assert complete["completed_count"] == 2
+    assert complete["missing_section_ids"] == []
+    assert complete["completed_at"]
 
 
 def test_cloud_api_dataset_from_examples_generates_manifest_and_mask(tmp_path: Path):
@@ -154,6 +278,187 @@ def test_cloud_api_capture_guidance_reports_alignment_instruction(tmp_path: Path
     polygon = body["alignment"]["mold_segmentation"]["polygon_normalized"]
     assert len(polygon) >= 3
     assert all(0 <= point["x"] <= 1 and 0 <= point["y"] <= 1 for point in polygon)
+
+
+def test_cloud_api_zone_reference_expected_and_align_quality(tmp_path: Path):
+    image_paths = _write_dataset_images(tmp_path)
+    settings = CloudSettings(local_state_dir=tmp_path / "state", evidence_dir=tmp_path / "evidence")
+    client = TestClient(create_app(settings))
+    upload = _upload_file(client, image_paths["ok"], "molde_demo", "frontal_zona_01", "reference")
+
+    created = client.post(
+        "/v1/zones/frontal_zona_01/reference",
+        json={
+            "family": "molde_demo",
+            "image_uri": upload["object_uri"],
+            "reference_id": "golden_sample",
+            "tolerance": {"translation": 0.07},
+        },
+    )
+    assert created.status_code == 200
+    body = created.json()
+    assert body["reference_id"] == "golden_sample"
+    assert body["image_url"].endswith(f"/v1/uploads/{upload['upload_id']}/file")
+
+    fetched = client.get("/v1/zones/frontal_zona_01/reference?family=molde_demo")
+    assert fetched.status_code == 200
+    assert fetched.json()["image_uri"] == upload["object_uri"]
+
+    expected = client.get("/v1/zones/frontal_zona_01/expected?family=molde_demo")
+    assert expected.status_code == 200
+    assert {item["class_name"] for item in expected.json()} >= {"guide_post", "black_fastener"}
+    generated_expected = client.get("/v1/zones/zona_01_front/expected?family=molde_demo")
+    assert generated_expected.status_code == 200
+    assert {item["class_name"] for item in generated_expected.json()} >= {"guide_post", "black_fastener"}
+
+    align = client.post(
+        "/v1/uploads/align-quality",
+        json={"family": "molde_demo", "zone_id": "frontal_zona_01", "image_uri": upload["object_uri"], "reference_id": "golden_sample"},
+    )
+    assert align.status_code == 200
+    assert align.json()["status"] in {"correct", "retake_photo"}
+    assert "alignment" in align.json()
+
+
+def test_cloud_api_inspection_uses_reference_piece_diff_without_model(tmp_path: Path):
+    image_paths = _write_dataset_images(tmp_path)
+    settings = CloudSettings(
+        local_state_dir=tmp_path / "state",
+        model_registry_dir=tmp_path / "registry",
+        evidence_dir=tmp_path / "evidence",
+    )
+    client = TestClient(create_app(settings))
+    reference_upload = _upload_file(client, image_paths["ok"], "molde_demo", "zona_01_front", "reference")
+    fault_upload = _upload_file(client, image_paths["fault"], "molde_demo", "zona_01_front", "inspection")
+
+    reference = client.post(
+        "/v1/zones/zona_01_front/reference",
+        json={"family": "molde_demo", "image_uri": reference_upload["object_uri"], "reference_id": "golden_sample"},
+    )
+    assert reference.status_code == 200
+
+    inspection = client.post(
+        "/v1/inspections",
+        json={
+            "family": "molde_demo",
+            "zone_id": "zona_01_front",
+            "image_uri": fault_upload["object_uri"],
+            "mold_id": "molde_demo",
+        },
+    )
+
+    assert inspection.status_code == 200
+    body = inspection.json()
+    assert body["status"] == "review"
+    assert body["result"]["reason"] == "reference_roi_diff_without_model"
+    assert body["result"]["piece_inspection"]["missing_count"] > 0
+    assert body["missing_regions"]
+    assert all(_region_area(region) < 0.08 for region in body["missing_regions"])
+    assert body["overlay_image_uri"]
+
+
+def test_cloud_api_annotations_create_yolo_dataset_and_train(tmp_path: Path):
+    image_paths = _write_dataset_images(tmp_path)
+    settings = CloudSettings(local_state_dir=tmp_path / "state", evidence_dir=tmp_path / "evidence")
+    client = TestClient(create_app(settings))
+    upload = _upload_file(client, image_paths["ok"], "fam", "zona_01", "annotation")
+
+    annotation = client.post(
+        "/v1/annotations",
+        json={
+            "image_id": "img_001",
+            "image_uri": upload["object_uri"],
+            "family": "fam",
+            "zone_id": "zona_01",
+            "split": "train",
+            "annotations": [
+                {
+                    "element_id": "bloque_ref_01",
+                    "class_name": "block",
+                    "bbox": [0.2, 0.25, 0.45, 0.55],
+                    "status": "present",
+                }
+            ],
+        },
+    )
+    assert annotation.status_code == 200
+    assert annotation.json()["box_count"] == 1
+
+    listed = client.get("/v1/annotations?family=fam&zone_id=zona_01")
+    assert listed.status_code == 200
+    assert listed.json()[0]["image_url"].endswith(f"/v1/uploads/{upload['upload_id']}/file")
+
+    dataset = client.post(
+        "/v1/segmenter-datasets/from-annotations",
+        json={"family": "fam", "zone_id": "zona_01", "name": "YOLO desde anotaciones"},
+    )
+    assert dataset.status_code == 200
+    dataset_body = dataset.json()
+    assert dataset_body["status"] == "ready_for_training"
+    assert dataset_body["box_count"] == 1
+    root = Path(dataset_body["dataset_uri"].removeprefix("file://"))
+    assert (root / "labels" / "train" / "000001.txt").read_text().startswith("0 0.325000 0.400000 0.250000 0.300000")
+
+    training = client.post("/v1/inspector-training-jobs", json={"family": "fam", "zone_id": "zona_01", "dataset_id": dataset_body["id"]})
+    assert training.status_code == 200
+    assert training.json()["status"] == "queued"
+    model_version = client.get("/v1/model_versions/best_fam_zona_01")
+    assert model_version.status_code == 200
+    model_body = model_version.json()
+    assert model_body["model_uri"].endswith("/model.json")
+    assert Path(model_body["model_uri"].removeprefix("file://")).exists()
+
+    new_upload = _upload_file(client, image_paths["fault"], "fam", "zona_01", "annotation")
+    draft = client.post(
+        "/v1/annotations/auto-draft",
+        json={"family": "fam", "zone_id": "zona_01", "image_uri": new_upload["object_uri"]},
+    )
+    assert draft.status_code == 200
+    draft_body = draft.json()
+    assert draft_body["source"] == "model"
+    assert draft_body["model_version_id"] == "best_fam_zona_01"
+    assert draft_body["annotations"][0]["class_name"] == "block"
+    assert draft_body["annotations"][0]["bbox"] == [0.2, 0.25, 0.45, 0.55]
+    assert draft_body["annotations"][0]["notes"].startswith("auto_draft_model:")
+
+
+def test_cloud_api_auto_annotation_draft_reuses_latest_zone_annotation(tmp_path: Path):
+    image_paths = _write_dataset_images(tmp_path)
+    settings = CloudSettings(local_state_dir=tmp_path / "state", evidence_dir=tmp_path / "evidence")
+    client = TestClient(create_app(settings))
+    template_upload = _upload_file(client, image_paths["ok"], "fam", "zona_01", "annotation")
+    new_upload = _upload_file(client, image_paths["fault"], "fam", "zona_01", "annotation")
+
+    saved = client.post(
+        "/v1/annotations",
+        json={
+            "image_id": "template_img",
+            "image_uri": template_upload["object_uri"],
+            "family": "fam",
+            "zone_id": "zona_01",
+            "split": "train",
+            "annotations": [
+                {
+                    "element_id": "guide_post",
+                    "class_name": "guide_post",
+                    "bbox": [0.1, 0.2, 0.3, 0.4],
+                    "status": "present",
+                }
+            ],
+        },
+    )
+    assert saved.status_code == 200
+
+    draft = client.post(
+        "/v1/annotations/auto-draft",
+        json={"family": "fam", "zone_id": "zona_01", "image_uri": new_upload["object_uri"]},
+    )
+    assert draft.status_code == 200
+    body = draft.json()
+    assert body["source"] == "annotation_template"
+    assert body["annotations"][0]["class_name"] == "guide_post"
+    assert body["annotations"][0]["bbox"] == [0.1, 0.2, 0.3, 0.4]
+    assert body["annotations"][0]["notes"].startswith("auto_draft_template:")
 
 
 def test_cloud_api_segmenter_dataset_from_annotations(tmp_path: Path):
@@ -422,6 +727,12 @@ def _local_upload_path(state_dir: Path, object_uri: str) -> Path:
     upload_id = object_uri.removeprefix("local://")
     uploads = json.loads((state_dir / "metadata" / "uploads.json").read_text())
     return Path(uploads[upload_id]["path"])
+
+
+def _region_area(region: list[dict[str, float]]) -> float:
+    xs = [float(point["x"]) for point in region]
+    ys = [float(point["y"]) for point in region]
+    return (max(xs) - min(xs)) * (max(ys) - min(ys))
 
 
 def _write_dataset_images(tmp_path: Path, offset: str = "center") -> dict[str, Path]:

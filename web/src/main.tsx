@@ -1,16 +1,74 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { supabase } from "./utils/supabase";
+import {
+  Camera,
+  CircleAlert,
+  ClipboardCheck,
+  Database,
+  Gauge,
+  History,
+  LayoutDashboard,
+  PencilRuler,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Target,
+  TrendingUp,
+  TriangleAlert
+} from "lucide-react";
+import { supabase, supabaseConfigured } from "./utils/supabase";
+import LocalLab from "./lab/LocalLab";
 import "./styles.css";
 
 type InspectionStatus = "idle" | "uploading" | "running" | "correct" | "review" | "retake_photo" | "error";
-type View = "molds" | "segmenter" | "capture" | "history";
+type View = "lab" | "capture" | "annotations" | "molds" | "segmenter" | "validations" | "history";
 
 type Zone = {
   id: string;
   family: string;
   name?: string;
   label?: string;
+};
+
+type ZoneReference = {
+  id: string;
+  family: string;
+  zone_id: string;
+  reference_id: string;
+  image_uri: string;
+  image_url?: string;
+  mask_uri?: string | null;
+  mask_url?: string | null;
+  tolerance?: Record<string, number>;
+};
+
+type ExpectedPiece = {
+  id: string;
+  class_name: string;
+  name?: string | null;
+  roi?: number[] | null;
+  required?: boolean;
+  critical?: boolean;
+};
+
+type AnnotationBox = {
+  id: string;
+  element_id?: string | null;
+  class_name: string;
+  bbox: [number, number, number, number];
+  status: "present" | "missing" | "uncertain";
+  notes?: string | null;
+};
+
+type AnnotatableImage = {
+  id: string;
+  image_uri: string;
+  image_url?: string;
+  family: string;
+  zone_id: string;
+  mold_id?: string | null;
+  session_id?: string | null;
+  created_at?: string;
 };
 
 type ResourceRecord = {
@@ -35,6 +93,59 @@ type MoldSummary = {
   falsePassRate: number | null;
   lastTraining?: string;
   lastInspection?: string;
+};
+
+type LeadershipMetrics = {
+  totalValidations: number;
+  correctCount: number;
+  reviewCount: number;
+  retakeCount: number;
+  retakeRate: number;
+  activeMolds: number;
+  missingPieces: number;
+  latestTraining?: string;
+  falsePassRate: number | null;
+  validationRecall: number | null;
+};
+
+type MoldValidationSummary = {
+  id: string;
+  name: string;
+  family: string;
+  zoneId: string;
+  status: MoldSummary["status"];
+  validations: number;
+  correct: number;
+  review: number;
+  retake: number;
+  retakeRate: number;
+  missingPieces: number;
+  lastInspection?: string;
+  lastTraining?: string;
+  confidence: number | null;
+  falsePassRate: number | null;
+  validationRecall: number | null;
+  latestImageUri?: string;
+  latestMessage?: string;
+};
+
+type InspectionTrendPoint = {
+  date: string;
+  total: number;
+  correct: number;
+  review: number;
+  retake: number;
+};
+
+type NormalizedInspection = {
+  id: string;
+  family: string;
+  zoneId: string;
+  status: "correct" | "review" | "retake_photo";
+  createdAt?: string;
+  message?: string;
+  imageUri?: string;
+  missingCount: number;
 };
 
 type Point = { x: number; y: number };
@@ -107,8 +218,51 @@ type MoldDrafts = {
   deleted: string[];
 };
 
+type MoldViewSide = "left" | "right" | "front";
+
+type MoldSection = {
+  id: string;
+  zoneId: string;
+  label: string;
+  zoneIndex: number;
+  view: MoldViewSide;
+};
+
+type MoldSectionPlan = {
+  moldKey: string;
+  family: string;
+  sections: MoldSection[];
+  updatedAt: string;
+};
+
+type SectionResult = {
+  status: "correct" | "review" | "retake_photo";
+  message: string;
+  updatedAt: string;
+  inspectionId?: string | null;
+  imageUri?: string | null;
+};
+
+type MoldValidationSession = {
+  id: string;
+  family: string;
+  mold_key?: string;
+  status: "pending" | "in_progress" | "complete";
+  required_count: number;
+  completed_count: number;
+  missing_section_ids: string[];
+  ready_section_ids: string[];
+  section_results: Record<string, Record<string, unknown>>;
+};
+
 const API_BASE = import.meta.env.VITE_API_BASE || "";
+const SUPABASE_ENABLED = supabaseConfigured && import.meta.env.VITE_ENABLE_SUPABASE === "true" && !isLocalRuntime();
 const DEFAULT_ZONES: Zone[] = [{ id: "frontal_zona_01", family: "molde_demo", name: "Frontal zona 01" }];
+const VIEW_OPTIONS: Array<{ value: MoldViewSide; label: string }> = [
+  { value: "left", label: "Izquierda" },
+  { value: "right", label: "Derecha" },
+  { value: "front", label: "Frente" }
+];
 const DEFAULT_SEGMENTER_POLYGON: Point[] = [
   { x: 0.18, y: 0.22 },
   { x: 0.82, y: 0.18 },
@@ -118,7 +272,7 @@ const DEFAULT_SEGMENTER_POLYGON: Point[] = [
 ];
 
 function App() {
-  const [view, setView] = useState<View>("molds");
+  const [view, setView] = useState<View>("lab");
   const [family, setFamily] = useState("molde_demo");
   const [zoneId, setZoneId] = useState("frontal_zona_01");
   const [moldId, setMoldId] = useState("");
@@ -127,13 +281,72 @@ function App() {
   const [status, setStatus] = useState<InspectionStatus>("idle");
   const [message, setMessage] = useState("Lista para capturar una zona.");
   const [result, setResult] = useState<InspectionResult | null>(null);
+  const [zoneReference, setZoneReference] = useState<ZoneReference | null>(null);
+  const [expectedPieces, setExpectedPieces] = useState<ExpectedPiece[]>([]);
+  const [sectionPlan, setSectionPlan] = useState<MoldSectionPlan>(() => loadSectionPlan(family, moldId, zoneId));
+  const [sectionPlanSync, setSectionPlanSync] = useState<"local" | "saving" | "saved" | "error">("local");
+  const [activeSectionId, setActiveSectionId] = useState(sectionPlan.sections[0]?.id || "");
+  const [sectionResults, setSectionResults] = useState<Record<string, SectionResult>>({});
+  const [validationSession, setValidationSession] = useState<MoldValidationSession | null>(null);
 
   const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : ""), [file]);
+  const activeSection = sectionPlan.sections.find((section) => section.id === activeSectionId) || sectionPlan.sections[0] || null;
+  const activeSectionKey = activeSection?.id || zoneId;
+
+  useEffect(() => {
+    void loadCaptureContext(family, zoneId).then(({ reference, expected }) => {
+      setZoneReference(reference);
+      setExpectedPieces(expected);
+    });
+  }, [family, zoneId]);
+
+  useEffect(() => {
+    const nextPlan = loadSectionPlan(family, moldId, zoneId);
+    setSectionPlan(nextPlan);
+    const nextSection = nextPlan.sections.find((section) => section.zoneId === zoneId) || nextPlan.sections[0] || null;
+    setActiveSectionId(nextSection?.id || "");
+    if (nextSection && nextSection.zoneId !== zoneId) setZoneId(nextSection.zoneId);
+    setSectionPlanSync("local");
+
+    let cancelled = false;
+    void loadRemoteSectionPlan(family, moldId || family, zoneId).then((remotePlan) => {
+      if (cancelled || !remotePlan) return;
+      persistSectionPlan(remotePlan);
+      setSectionPlan(remotePlan);
+      const remoteSection = remotePlan.sections.find((section) => section.zoneId === zoneId) || remotePlan.sections[0] || null;
+      setActiveSectionId(remoteSection?.id || "");
+      if (remoteSection && remoteSection.zoneId !== zoneId) setZoneId(remoteSection.zoneId);
+      setSectionPlanSync("saved");
+    }).catch(() => {
+      if (!cancelled) setSectionPlanSync("local");
+    });
+    return () => { cancelled = true; };
+  }, [family, moldId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void ensureValidationSession(sectionPlan).then((session) => {
+      if (cancelled) return;
+      setValidationSession(session);
+      if (session) setSectionResults(validationResultsFromSession(session));
+    }).catch(() => {
+      if (!cancelled) setValidationSession(null);
+    });
+    return () => { cancelled = true; };
+  }, [sectionPlan.family, sectionPlan.moldKey, sectionPlan.updatedAt]);
 
   async function runInspection(targetFile = file) {
     if (!targetFile) {
       setStatus("error");
       setMessage("Selecciona o toma una foto antes de validar.");
+      return;
+    }
+    const clientQuality = await validateClientImage(targetFile);
+    if (!clientQuality.ok) {
+      setResult(null);
+      setStatus("retake_photo");
+      setMessage(clientQuality.message);
+      setSectionResults((current) => ({ ...current, [activeSectionKey]: { status: "retake_photo", message: clientQuality.message, updatedAt: new Date().toISOString() } }));
       return;
     }
     setResult(null);
@@ -153,6 +366,24 @@ function App() {
         body: targetFile
       });
       setStatus("running");
+      setMessage("Validando encuadre...");
+      const alignment = (await postJson("/v1/uploads/align-quality", {
+        family,
+        zone_id: zoneId,
+        image_uri: presign.object_uri,
+        reference_id: zoneReference?.reference_id || null
+      })) as { status: InspectionStatus; ok: boolean; message: string; guidance?: string[] };
+      if (!alignment.ok) {
+        setStatus("retake_photo");
+        setMessage(alignment.message);
+        setSectionResults((current) => ({ ...current, [activeSectionKey]: { status: "retake_photo", message: alignment.message, updatedAt: new Date().toISOString() } }));
+        const nextSession = await saveValidationProgress({
+          status: "retake_photo",
+          image_uri: presign.object_uri,
+          message: alignment.message
+        });
+        return;
+      }
       setMessage("Validando captura y modelo...");
       const inspection = (await postJson("/v1/inspections", {
         family,
@@ -160,12 +391,23 @@ function App() {
         mold_id: moldId || null,
         session_id: null,
         image_uri: presign.object_uri,
-        capture_metadata: { source: "web" }
+        capture_metadata: {
+          source: "web",
+          reference_id: zoneReference?.reference_id || null,
+          client_quality: clientQuality
+        }
       })) as InspectionResult;
       setResult(inspection);
       setStatus(inspection.status);
       setMessage(inspection.message);
-      await insertSupabase("inspections", toPlainRecord(inspection));
+      setSectionResults((current) => ({ ...current, [activeSectionKey]: { status: inspection.status, message: inspection.message, updatedAt: new Date().toISOString() } }));
+      const nextSession = await saveValidationProgress({
+        status: inspection.status,
+        inspection_id: inspection.id,
+        image_uri: presign.object_uri,
+        message: inspection.message
+      });
+      await insertSupabase("inspections", { ...toPlainRecord(inspection), image_uri: presign.object_uri, family, zone_id: zoneId, mold_id: moldId || null });
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Error inesperado.");
@@ -188,6 +430,47 @@ function App() {
     setMessage("Lista para capturar una zona.");
   }
 
+  function activateSection(section: MoldSection) {
+    setActiveSectionId(section.id);
+    setZoneId(section.zoneId);
+    setFile(null);
+    setResult(null);
+    setStatus("idle");
+    setMessage("Lista para capturar una zona.");
+  }
+
+  function saveSectionPlan(nextPlan: MoldSectionPlan) {
+    persistSectionPlan(nextPlan);
+    setSectionPlan(nextPlan);
+    setSectionPlanSync("saving");
+    const nextSection = nextPlan.sections[0] || null;
+    if (nextSection) activateSection(nextSection);
+    void persistRemoteSectionPlan(nextPlan).then((remotePlan) => {
+      if (remotePlan) {
+        persistSectionPlan(remotePlan);
+        setSectionPlan(remotePlan);
+      }
+      setSectionPlanSync("saved");
+    }).catch(() => setSectionPlanSync("error"));
+  }
+
+  async function saveValidationProgress(payload: {
+    status: "correct" | "review" | "retake_photo";
+    inspection_id?: string;
+    image_uri?: string;
+    message?: string;
+  }) {
+    const sessionForWrite = validationSession || await ensureValidationSession(sectionPlan);
+    if (!sessionForWrite) return null;
+    const nextSession = await recordValidationSectionResult(sessionForWrite, activeSection, payload);
+    if (nextSession) {
+      setValidationSession(nextSession);
+      setSectionResults(validationResultsFromSession(nextSession));
+      if (nextSession.status === "complete") setMessage("Molde completo: todas las vistas requeridas tienen foto aceptada o revisada.");
+    }
+    return nextSession;
+  }
+
   return (
     <main className="shell">
       <aside className="sidebar">
@@ -198,15 +481,23 @@ function App() {
             <small>Inspección cloud</small>
           </div>
         </div>
-        <nav>
-          <button className={view === "molds" ? "active" : ""} onClick={() => setView("molds")}>Moldes</button>
-          <button className={view === "segmenter" ? "active" : ""} onClick={() => setView("segmenter")}>Guía de cámara</button>
-          <button className={view === "capture" ? "active" : ""} onClick={() => setView("capture")}>Captura</button>
-          <button className={view === "history" ? "active" : ""} onClick={() => setView("history")}>Historial</button>
+        <nav aria-label="Navegación principal">
+          <span className="navGroup">Operación</span>
+          <NavButton icon={Target} label="Prueba local" active={view === "lab"} onClick={() => setView("lab")} />
+          <NavButton icon={Camera} label="Captura" active={view === "capture"} onClick={() => setView("capture")} />
+          <NavButton icon={PencilRuler} label="Anotar" active={view === "annotations"} onClick={() => setView("annotations")} />
+          <span className="navGroup">Gestión</span>
+          <NavButton icon={Database} label="Moldes" active={view === "molds"} onClick={() => setView("molds")} />
+          <NavButton icon={Target} label="Guía cámara" active={view === "segmenter"} onClick={() => setView("segmenter")} />
+          <span className="navGroup">Dirección</span>
+          <NavButton icon={LayoutDashboard} label="Validaciones" active={view === "validations"} onClick={() => setView("validations")} />
+          <NavButton icon={History} label="Historial" active={view === "history"} onClick={() => setView("history")} />
         </nav>
       </aside>
 
       <section className="workspace">
+        {view === "lab" && <LocalLab />}
+
         {view === "molds" && <MoldsView onTest={(mold) => { selectMold(mold); setView("capture"); }} />}
 
         {view === "segmenter" && <SegmenterTrainingView />}
@@ -222,6 +513,15 @@ function App() {
             </header>
 
             <MoldQuickSelect family={family} zoneId={zoneId} onSelect={selectMold} />
+            <SectionPlanControl plan={sectionPlan} activeSectionId={activeSectionId} syncState={sectionPlanSync} onPlanChange={saveSectionPlan} onSelectSection={activateSection} />
+            <ReferenceSetup
+              family={family}
+              zoneId={zoneId}
+              reference={zoneReference}
+              expectedPieces={expectedPieces}
+              onSaved={(reference) => setZoneReference(reference)}
+            />
+            <SectionWorkflowPanel family={family} zoneId={zoneId} reference={zoneReference} expectedPieces={expectedPieces} result={result} status={status} sections={sectionPlan.sections} activeSectionId={activeSectionId} sectionResults={sectionResults} validationSession={validationSession} onSelectSection={activateSection} />
 
             <section className="captureLayout">
               <div className="panel capture">
@@ -229,23 +529,162 @@ function App() {
                   <strong>Foto para inspección</strong>
                   <span className={`status ${status}`}>{statusLabel(status)}</span>
                 </div>
-                <CaptureStillPanel previewUrl={previewUrl} status={status} onOpen={() => setCaptureOpen(true)} onFile={setFile} onInspect={runInspection} />
+                <CaptureStillPanel previewUrl={previewUrl} referenceUrl={displayUrl(zoneReference?.image_url || zoneReference?.image_uri || "")} status={status} onOpen={() => setCaptureOpen(true)} onFile={setFile} onInspect={runInspection} />
                 <div className="hintRow">
-                  <span>Objeto completo dentro del marco</span>
-                  <span>Sin brillo extremo</span>
-                  <span>Sin desenfoque</span>
+                  <span>Molde acostado completo</span>
+                  <span>Mismo ángulo que referencia</span>
+                  <span>Pernos y bloques visibles</span>
                 </div>
               </div>
             </section>
 
             {result ? <InspectionResultPanel status={status} message={message} result={result} previewUrl={previewUrl} family={family} zoneId={zoneId} /> : null}
-            {captureOpen ? <CameraCapture family={family} zoneId={zoneId} previewUrl={previewUrl} onFile={setFile} onCapture={handleCaptured} onCancel={() => setCaptureOpen(false)} fullscreen /> : null}
+            {captureOpen ? <CameraCapture family={family} zoneId={zoneId} previewUrl={previewUrl} reference={zoneReference} expectedPieces={expectedPieces} onFile={setFile} onCapture={handleCaptured} onCancel={() => setCaptureOpen(false)} fullscreen /> : null}
           </>
         )}
+
+        {view === "annotations" && <AnnotationWorkspace family={family} zoneId={zoneId} expectedPieces={expectedPieces} reference={zoneReference} />}
+
+        {view === "validations" && <LeadershipDashboard />}
 
         {view === "history" && <HistoryView />}
       </section>
     </main>
+  );
+}
+
+function NavButton({ icon: Icon, label, active, onClick }: { icon: React.ElementType; label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button className={active ? "active" : ""} onClick={onClick}>
+      <Icon size={16} strokeWidth={1.8} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function SectionWorkflowPanel({
+  family,
+  zoneId,
+  reference,
+  expectedPieces,
+  result,
+  status,
+  sections,
+  activeSectionId,
+  sectionResults,
+  validationSession,
+  onSelectSection
+}: {
+  family: string;
+  zoneId: string;
+  reference: ZoneReference | null;
+  expectedPieces: ExpectedPiece[];
+  result: InspectionResult | null;
+  status: InspectionStatus;
+  sections: MoldSection[];
+  activeSectionId: string;
+  sectionResults: Record<string, SectionResult>;
+  validationSession: MoldValidationSession | null;
+  onSelectSection: (section: MoldSection) => void;
+}) {
+  const pieces = expectedPieces.length ? expectedPieces : defaultExpectedPieces();
+  const completedSections = validationSession?.completed_count ?? sections.filter((section) => sectionResults[section.id]?.status === "correct" || sectionResults[section.id]?.status === "review").length;
+  const requiredSections = validationSession?.required_count ?? sections.length;
+  const steps = [
+    { label: "Golden sample", done: Boolean(reference), detail: reference?.reference_id || "pendiente" },
+    { label: "Piezas esperadas", done: pieces.length > 0, detail: `${pieces.length} clases` },
+    { label: "Captura", done: Boolean(result), detail: result ? statusLabel(result.status) : statusLabel(status) },
+    { label: "Molde completo", done: validationSession?.status === "complete", detail: validationSession ? validationStatusLabel(validationSession.status) : "sin sesión" }
+  ];
+  return (
+    <section className="sectionWorkflow panel">
+      <div>
+        <span>Sección actual</span>
+        <strong>{family} / {zoneId}</strong>
+        <b>{completedSections}/{requiredSections || 1} vistas listas</b>
+        <small>{validationSession ? `Servidor: ${validationStatusLabel(validationSession.status)}` : "Servidor: pendiente"}</small>
+      </div>
+      <div className="sectionSteps" aria-label="Checklist de sección">
+        {steps.map((step) => (
+          <div key={step.label} className={step.done ? "done" : ""}>
+            <i />
+            <span>{step.label}</span>
+            <b>{step.detail}</b>
+          </div>
+        ))}
+      </div>
+      <div className="sectionMatrix" aria-label="Vistas requeridas">
+        {sections.map((section) => {
+          const sectionResult = sectionResults[section.id];
+          return (
+            <button key={section.id} type="button" className={section.id === activeSectionId ? "active" : ""} onClick={() => onSelectSection(section)}>
+              <i className={sectionResult?.status || ""} />
+              <span>{section.label}</span>
+              <b>{sectionResult ? statusLabel(sectionResult.status) : "pendiente"}</b>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function SectionPlanControl({
+  plan,
+  activeSectionId,
+  syncState,
+  onPlanChange,
+  onSelectSection
+}: {
+  plan: MoldSectionPlan;
+  activeSectionId: string;
+  syncState: "local" | "saving" | "saved" | "error";
+  onPlanChange: (plan: MoldSectionPlan) => void;
+  onSelectSection: (section: MoldSection) => void;
+}) {
+  const [zoneCount, setZoneCount] = useState(() => Math.max(1, Math.max(...plan.sections.map((section) => section.zoneIndex), 1)));
+  const [views, setViews] = useState<MoldViewSide[]>(() => selectedViewsFromPlan(plan));
+
+  useEffect(() => {
+    setZoneCount(Math.max(1, Math.max(...plan.sections.map((section) => section.zoneIndex), 1)));
+    setViews(selectedViewsFromPlan(plan));
+  }, [plan.moldKey, plan.updatedAt]);
+
+  function toggleView(view: MoldViewSide) {
+    setViews((current) => current.includes(view) ? current.filter((item) => item !== view) : [...current, view]);
+  }
+
+  function applyPlan() {
+    const selectedViews = views.length ? views : ["front" as MoldViewSide];
+    onPlanChange(buildSectionPlan(plan.family, plan.moldKey, zoneCount, selectedViews));
+  }
+
+  return (
+    <section className="sectionPlan panel">
+      <div>
+        <span>Separación del molde</span>
+        <strong>{plan.sections.length} vistas requeridas</strong>
+        <small className={`syncState ${syncState}`}>{syncStateLabel(syncState)}</small>
+      </div>
+      <label>Zonas
+        <input type="number" min={1} max={12} value={zoneCount} onChange={(event) => setZoneCount(clamp(Math.round(Number(event.target.value) || 1), 1, 12))} />
+      </label>
+      <div className="viewToggles" aria-label="Vistas por zona">
+        {VIEW_OPTIONS.map((option) => (
+          <label key={option.value}>
+            <input type="checkbox" checked={views.includes(option.value)} onChange={() => toggleView(option.value)} />
+            <span>{option.label}</span>
+          </label>
+        ))}
+      </div>
+      <button className="secondary" type="button" onClick={applyPlan}>Aplicar separación</button>
+      <select value={activeSectionId} onChange={(event) => {
+        const section = plan.sections.find((item) => item.id === event.target.value);
+        if (section) onSelectSection(section);
+      }}>
+        {plan.sections.map((section) => <option key={section.id} value={section.id}>{section.label}</option>)}
+      </select>
+    </section>
   );
 }
 
@@ -354,7 +793,7 @@ function MoldsView({ onTest }: { onTest: (mold: MoldSummary) => void }) {
       const source = recordSource(item);
       return String(source.family || "") === mold.family && String(source.zone_id || DEFAULT_ZONES[0].id) === mold.zoneId;
     });
-    if (recipe?.id) {
+    if (SUPABASE_ENABLED && recipe?.id) {
       await supabase.from("recipes").update({ name }).eq("id", recipe.id);
     }
   }
@@ -373,7 +812,7 @@ function MoldsView({ onTest }: { onTest: (mold: MoldSummary) => void }) {
       const source = recordSource(item);
       return String(source.family || "") === mold.family && String(source.zone_id || DEFAULT_ZONES[0].id) === mold.zoneId;
     });
-    if (recipe?.id) {
+    if (SUPABASE_ENABLED && recipe?.id) {
       await supabase.from("recipes").delete().eq("id", recipe.id);
     }
   }
@@ -448,7 +887,7 @@ function MoldsView({ onTest }: { onTest: (mold: MoldSummary) => void }) {
         image_uri: imageUri,
         capture_metadata: { source: "mold_test" }
       })) as InspectionResult;
-      await insertSupabase("inspections", toPlainRecord(inspection));
+      await insertSupabase("inspections", { ...toPlainRecord(inspection), image_uri: imageUri, family: mold.family, zone_id: mold.zoneId, mold_id: mold.id });
       setTestResult(inspection);
       await refresh();
     } catch (inspectionError) {
@@ -572,7 +1011,7 @@ function MoldsView({ onTest }: { onTest: (mold: MoldSummary) => void }) {
                   </div>
                   {testResult ? (
                     <>
-                      <EvaluationImage imageUrl={testPreviewUrl || inspectionImageUrl(testResult)} missingPolygons={missingPiecePolygons(testResult)} />
+                      <EvaluationImage imageUrl={inspectionImageUrl(testResult) || testPreviewUrl} missingPolygons={missingPiecePolygons(testResult)} />
                       <div className="resultCopy">
                         <span className={`resultBadge ${testResult.status}`}>{statusLabel(testResult.status)}</span>
                         <strong>{testResult.message}</strong>
@@ -785,6 +1224,10 @@ function SegmenterTrainingView() {
 
 function MoldQuickSelect({ family, zoneId, onSelect }: { family: string; zoneId: string; onSelect: (mold: MoldSummary) => void }) {
   const [molds, setMolds] = useState<MoldSummary[]>([]);
+  const selectedValue = useMemo(() => {
+    const exactId = `${family}:${zoneId}`;
+    return molds.some((mold) => mold.id === exactId) ? exactId : (molds.find((mold) => mold.family === family)?.id || exactId);
+  }, [family, zoneId, molds]);
 
   useEffect(() => {
     async function load() {
@@ -803,7 +1246,7 @@ function MoldQuickSelect({ family, zoneId, onSelect }: { family: string; zoneId:
   return (
     <section className="captureMoldSelect">
       <label>Molde
-        <select value={`${family}:${zoneId}`} onChange={(event) => {
+        <select value={selectedValue} onChange={(event) => {
           const mold = molds.find((item) => item.id === event.target.value);
           if (mold) onSelect(mold);
         }}>
@@ -863,6 +1306,236 @@ function HistoryView() {
         })}
       </section>
     </>
+  );
+}
+
+function LeadershipDashboard() {
+  const [recipes, setRecipes] = useState<ResourceRecord[]>([]);
+  const [datasets, setDatasets] = useState<ResourceRecord[]>([]);
+  const [candidates, setCandidates] = useState<ResourceRecord[]>([]);
+  const [jobs, setJobs] = useState<ResourceRecord[]>([]);
+  const [inspections, setInspections] = useState<ResourceRecord[]>([]);
+  const [statusFilter, setStatusFilter] = useState<"all" | "correct" | "review" | "retake_photo">("all");
+  const [dateRange, setDateRange] = useState<"7" | "30" | "all">("30");
+  const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const moldSummaries = useMemo(
+    () => buildMoldSummaries(recipes, datasets, candidates, jobs, inspections),
+    [recipes, datasets, candidates, jobs, inspections]
+  );
+  const metrics = useMemo(() => buildLeadershipMetrics(moldSummaries, candidates, jobs, inspections), [moldSummaries, candidates, jobs, inspections]);
+  const moldRows = useMemo(() => buildMoldValidationSummaries(moldSummaries, candidates, inspections), [moldSummaries, candidates, inspections]);
+  const filteredRows = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return moldRows.filter((row) => {
+      const matchesQuery = !normalizedQuery || `${row.name} ${row.family} ${row.zoneId}`.toLowerCase().includes(normalizedQuery);
+      const matchesStatus = statusFilter === "all" || (statusFilter === "correct" ? row.correct > 0 : statusFilter === "review" ? row.review > 0 : row.retake > 0);
+      const matchesDate = dateRange === "all" || withinDays(row.lastInspection, Number(dateRange));
+      return matchesQuery && matchesStatus && matchesDate;
+    });
+  }, [moldRows, query, statusFilter, dateRange]);
+  const selectedRow = filteredRows.find((row) => row.id === selectedId) || filteredRows[0] || null;
+  const selectedInspections = useMemo(() => {
+    if (!selectedRow) return [];
+    return inspectionSources(inspections)
+      .filter((inspection) => inspection.family === selectedRow.family && inspection.zoneId === selectedRow.zoneId)
+      .sort((left, right) => Date.parse(right.createdAt || "") - Date.parse(left.createdAt || ""))
+      .slice(0, 6);
+  }, [inspections, selectedRow]);
+  const trend = useMemo(() => buildInspectionTrend(inspections), [inspections]);
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId && filteredRows[0]) setSelectedId(filteredRows[0].id);
+  }, [filteredRows, selectedId]);
+
+  async function refresh() {
+    setLoading(true);
+    setError("");
+    try {
+      const [loadedRecipes, loadedDatasets, loadedCandidates, loadedJobs, loadedInspections] = await Promise.all([
+        loadRecords("recipes", "/v1/recipes"),
+        loadRecords("datasets", "/v1/datasets"),
+        loadRecords("model_candidates", "/v1/model_candidates"),
+        loadRecords("inspector_training_jobs", "/v1/inspector_training_jobs"),
+        loadRecords("inspections", "/v1/inspections")
+      ]);
+      setRecipes(loadedRecipes);
+      setDatasets(loadedDatasets);
+      setCandidates(loadedCandidates);
+      setJobs(loadedJobs);
+      setInspections(loadedInspections);
+    } catch (loadError) {
+      setError(messageFrom(loadError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <header className="topbar compactTopbar">
+        <div>
+          <span className="eyebrow">Dirección</span>
+          <h1>Validaciones</h1>
+          <p>Resultados por molde, uso de la app, retomas y salud de modelos.</p>
+        </div>
+        <button className="secondary iconButton" onClick={refresh} disabled={loading}><RefreshCw size={15} />Actualizar</button>
+      </header>
+
+      {error ? <p className="errorText inlineError">{error}</p> : null}
+
+      <section className="dashboardMetrics">
+        <KpiTile icon={ClipboardCheck} label="Validaciones" value={String(metrics.totalValidations)} detail={`${metrics.correctCount} correctas`} />
+        <KpiTile icon={TriangleAlert} label="Revisión" value={String(metrics.reviewCount)} detail={`${metrics.missingPieces} piezas faltantes`} tone="warn" />
+        <KpiTile icon={Camera} label="Retoma" value={formatPercent(metrics.retakeRate)} detail={`${metrics.retakeCount} fotos`} tone={metrics.retakeRate > 0.15 ? "danger" : "neutral"} />
+        <KpiTile icon={Database} label="Moldes activos" value={String(metrics.activeMolds)} detail="family + zona" />
+        <KpiTile icon={ShieldCheck} label="False pass" value={formatPercent(metrics.falsePassRate)} detail="modelo promovido" />
+        <KpiTile icon={TrendingUp} label="Recall" value={formatPercent(metrics.validationRecall)} detail={metrics.latestTraining ? formatDate(metrics.latestTraining) : "sin training"} />
+      </section>
+
+      <section className="dashboardGrid">
+        <div className="panel dashboardMain">
+          <div className="tableToolbar">
+            <div className="searchBox">
+              <Search size={14} />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar molde, familia o zona" />
+            </div>
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | "correct" | "review" | "retake_photo")}>
+              <option value="all">Todos estados</option>
+              <option value="correct">Correctos</option>
+              <option value="review">Revisión</option>
+              <option value="retake_photo">Retoma</option>
+            </select>
+            <select value={dateRange} onChange={(event) => setDateRange(event.target.value as "7" | "30" | "all")}>
+              <option value="7">7 días</option>
+              <option value="30">30 días</option>
+              <option value="all">Todo</option>
+            </select>
+          </div>
+          <div className="validationTable" role="table" aria-label="Validaciones por molde">
+            <div className="validationTableHead" role="row">
+              <span>Molde</span>
+              <span>Valid.</span>
+              <span>Correcto</span>
+              <span>Revisión</span>
+              <span>Retoma</span>
+              <span>Modelo</span>
+              <span>Última</span>
+            </div>
+            {filteredRows.length ? filteredRows.map((row) => (
+              <button key={row.id} className={selectedRow?.id === row.id ? "validationRow active" : "validationRow"} onClick={() => setSelectedId(row.id)} role="row">
+                <span><strong>{row.name}</strong><small>{row.family} / {row.zoneId}</small></span>
+                <b>{row.validations}</b>
+                <span>{row.correct}</span>
+                <span>{row.review}</span>
+                <span>{row.retake}</span>
+                <span className={`status ${statusClassForMold(row.status)}`}>{moldStatusLabel(row.status)}</span>
+                <time>{row.lastInspection ? formatDate(row.lastInspection) : "-"}</time>
+              </button>
+            )) : (
+              <div className="dashboardEmpty">
+                <CircleAlert size={20} />
+                <strong>Sin datos para este filtro</strong>
+                <span>Cuando haya inspecciones, dirección verá aquí validaciones por molde.</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <aside className="panel dashboardDetail">
+          {selectedRow ? (
+            <>
+              <div className="detailHeader">
+                <span className={`status ${statusClassForMold(selectedRow.status)}`}>{moldStatusLabel(selectedRow.status)}</span>
+                <h2>{selectedRow.name}</h2>
+                <p>{selectedRow.family} / {selectedRow.zoneId}</p>
+              </div>
+              <div className="detailStats">
+                <Metric label="Validaciones" value={String(selectedRow.validations)} />
+                <Metric label="Retoma" value={formatPercent(selectedRow.retakeRate)} />
+                <Metric label="False pass" value={formatPercent(selectedRow.falsePassRate)} />
+                <Metric label="Recall" value={formatPercent(selectedRow.validationRecall)} />
+              </div>
+              <div className="resultMix">
+                <StatusBar label="Correcto" value={selectedRow.correct} total={Math.max(1, selectedRow.validations)} className="ok" />
+                <StatusBar label="Revisión" value={selectedRow.review} total={Math.max(1, selectedRow.validations)} className="warn" />
+                <StatusBar label="Retoma" value={selectedRow.retake} total={Math.max(1, selectedRow.validations)} className="bad" />
+              </div>
+              <div className="latestInspections">
+                <strong>Últimas validaciones</strong>
+                {selectedInspections.length ? selectedInspections.map((inspection) => (
+                  <article key={inspection.id}>
+                    <span className={`dot ${inspection.status}`} />
+                    <div>
+                      <b>{statusLabel(inspection.status)}</b>
+                      <small>{inspection.message || "Inspección registrada"}</small>
+                    </div>
+                    <time>{inspection.createdAt ? formatDate(inspection.createdAt) : "-"}</time>
+                  </article>
+                )) : <p className="emptyText compact">Sin validaciones recientes.</p>}
+              </div>
+            </>
+          ) : (
+            <div className="dashboardEmpty">
+              <Gauge size={22} />
+              <strong>Sin molde seleccionado</strong>
+              <span>Selecciona un molde para ver detalle.</span>
+            </div>
+          )}
+        </aside>
+      </section>
+
+      <section className="panel trendPanel">
+        <div className="captureHeader">
+          <strong>Uso de app por día</strong>
+          <span>{trend.reduce((total, item) => total + item.total, 0)} validaciones</span>
+        </div>
+        <div className="trendBars">
+          {trend.map((point) => <TrendColumn key={point.date} point={point} max={Math.max(1, ...trend.map((item) => item.total))} />)}
+        </div>
+      </section>
+    </>
+  );
+}
+
+function KpiTile({ icon: Icon, label, value, detail, tone = "neutral" }: { icon: React.ElementType; label: string; value: string; detail: string; tone?: "neutral" | "warn" | "danger" }) {
+  return (
+    <article className={`kpiTile ${tone}`}>
+      <Icon size={16} strokeWidth={1.8} />
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </article>
+  );
+}
+
+function StatusBar({ label, value, total, className }: { label: string; value: number; total: number; className: string }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <i><b className={className} style={{ width: `${Math.round((value / total) * 100)}%` }} /></i>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function TrendColumn({ point, max }: { point: InspectionTrendPoint; max: number }) {
+  return (
+    <div className="trendColumn">
+      <i style={{ height: `${Math.max(6, Math.round((point.total / max) * 100))}%` }}>
+        <b className="ok" style={{ height: `${point.total ? Math.round((point.correct / point.total) * 100) : 0}%` }} />
+        <b className="warn" style={{ height: `${point.total ? Math.round((point.review / point.total) * 100) : 0}%` }} />
+        <b className="bad" style={{ height: `${point.total ? Math.round((point.retake / point.total) * 100) : 0}%` }} />
+      </i>
+      <span>{shortDay(point.date)}</span>
+    </div>
   );
 }
 
@@ -1471,14 +2144,483 @@ function ListView({ title, description, table, endpoint }: { title: string; desc
   );
 }
 
+function ReferenceSetup({
+  family,
+  zoneId,
+  reference,
+  expectedPieces,
+  onSaved
+}: {
+  family: string;
+  zoneId: string;
+  reference: ZoneReference | null;
+  expectedPieces: ExpectedPiece[];
+  onSaved: (reference: ZoneReference) => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const referenceUrl = displayUrl(reference?.image_url || reference?.image_uri || "");
+
+  async function saveReference() {
+    if (!file) {
+      setError("Sube foto referencia.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const imageUri = await uploadSystemFile(file, family, zoneId, "reference");
+      const saved = (await postJson(`/v1/zones/${encodeURIComponent(zoneId)}/reference`, {
+        family,
+        image_uri: imageUri,
+        reference_id: "golden_sample",
+        tolerance: { translation: 0.08, scale: 0.2, rotation: 8, pose_score: 0.72 }
+      })) as ZoneReference;
+      onSaved(saved);
+      setFile(null);
+    } catch (saveError) {
+      setError(messageFrom(saveError));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className="referenceStrip">
+      <div className="referencePreview">
+        {referenceUrl ? <img src={referenceUrl} alt="Golden sample" /> : <span>Sin golden sample</span>}
+      </div>
+      <div>
+        <strong>Golden sample</strong>
+        <span>{reference ? `${reference.family} / ${reference.zone_id} / ${reference.reference_id}` : "Primero carga foto correcta."}</span>
+      </div>
+      <div className="expectedChips">
+        {(expectedPieces.length ? expectedPieces : defaultExpectedPieces()).slice(0, 6).map((piece) => <span key={piece.id}>{piece.name || piece.class_name}</span>)}
+      </div>
+      <label className="secondary fileButton">Subir referencia
+        <input type="file" accept="image/*" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+      </label>
+      <button className="primary" type="button" onClick={saveReference} disabled={saving || !file}>{saving ? "Guardando" : "Guardar"}</button>
+      {error ? <p className="errorText compactError">{error}</p> : null}
+    </section>
+  );
+}
+
+function AnnotationWorkspace({
+  family,
+  zoneId,
+  expectedPieces,
+  reference
+}: {
+  family: string;
+  zoneId: string;
+  expectedPieces: ExpectedPiece[];
+  reference: ZoneReference | null;
+}) {
+  const [selectedFamily, setSelectedFamily] = useState(family);
+  const [selectedZone, setSelectedZone] = useState(zoneId);
+  const [images, setImages] = useState<AnnotatableImage[]>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [boxes, setBoxes] = useState<AnnotationBox[]>([]);
+  const [split, setSplit] = useState<"train" | "val" | "test">("train");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [dataset, setDataset] = useState<ResourceRecord | null>(null);
+  const [job, setJob] = useState<ResourceRecord | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const selectedImage = images.find((image) => image.id === selectedId) || images[0] || null;
+  const pieces = expectedPieces.length ? expectedPieces : defaultExpectedPieces();
+
+  useEffect(() => {
+    setSelectedFamily(family);
+    setSelectedZone(zoneId);
+  }, [family, zoneId]);
+
+  useEffect(() => {
+    void refreshImages();
+  }, [selectedFamily, selectedZone]);
+
+  useEffect(() => {
+    if (!selectedImage) {
+      setBoxes([]);
+      return;
+    }
+    setSelectedId(selectedImage.id);
+    void loadImageAnnotations(selectedImage);
+  }, [selectedImage?.id]);
+
+  async function refreshImages() {
+    setLoading(true);
+    setError("");
+    setNotice("");
+    try {
+      const [dbRecords, backendRecords, annotationRecords] = await Promise.all([
+        selectSupabase("inspections"),
+        getJson("/v1/inspections").catch(() => []),
+        getJson(`/v1/annotations?family=${encodeURIComponent(selectedFamily)}&zone_id=${encodeURIComponent(selectedZone)}`).catch(() => [])
+      ]);
+      const records = [
+        ...(Array.isArray(annotationRecords) ? annotationRecords as ResourceRecord[] : []),
+        ...dbRecords,
+        ...(Array.isArray(backendRecords) ? backendRecords as ResourceRecord[] : [])
+      ];
+      const nextImages = records
+        .map(recordToAnnotatableImage)
+        .filter((image): image is AnnotatableImage => Boolean(image?.image_uri))
+        .filter((image) => image.family === selectedFamily && image.zone_id === selectedZone);
+      setImages(uniqueImages(nextImages));
+      setSelectedId((current) => current || nextImages[0]?.id || "");
+    } catch (loadError) {
+      setError(messageFrom(loadError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadImageAnnotations(image: AnnotatableImage) {
+    try {
+      const records = await getJson(`/v1/annotations?image_uri=${encodeURIComponent(image.image_uri)}`);
+      const latest = Array.isArray(records) && records.length ? records[records.length - 1] : null;
+      const loaded = Array.isArray(latest?.annotations) ? latest.annotations.map(normalizeLoadedBox).filter(Boolean) as AnnotationBox[] : [];
+      setBoxes(loaded);
+      if (latest?.split) setSplit(latest.split);
+    } catch {
+      setBoxes([]);
+    }
+  }
+
+  async function uploadAnnotationImage() {
+    if (!uploadFile) {
+      setError("Sube una foto.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setNotice("");
+    try {
+      const imageUri = await uploadSystemFile(uploadFile, selectedFamily, selectedZone, "annotation");
+      const image = {
+        id: imageIdFromUri(imageUri),
+        image_uri: imageUri,
+        image_url: displayUrl(imageUri),
+        family: selectedFamily,
+        zone_id: selectedZone,
+      };
+      setImages((current) => uniqueImages([image, ...current]));
+      setSelectedId(image.id);
+      setUploadFile(null);
+    } catch (uploadError) {
+      setError(messageFrom(uploadError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveBoxes() {
+    if (!selectedImage) {
+      setError("No hay imagen.");
+      return;
+    }
+    if (!boxes.length) {
+      setError("Dibuja al menos una caja.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setNotice("");
+    try {
+      await postJson("/v1/annotations", {
+        image_id: selectedImage.id,
+        image_uri: selectedImage.image_uri,
+        family: selectedFamily,
+        zone_id: selectedZone,
+        mold_id: selectedImage.mold_id || null,
+        session_id: selectedImage.session_id || null,
+        reference_id: reference?.reference_id || null,
+        split,
+        annotations: boxes
+      });
+      await loadImageAnnotations(selectedImage);
+    } catch (saveError) {
+      setError(messageFrom(saveError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function exportDataset() {
+    setLoading(true);
+    setError("");
+    setNotice("");
+    try {
+      const created = (await postJson("/v1/segmenter-datasets/from-annotations", {
+        family: selectedFamily,
+        zone_id: selectedZone,
+        name: `YOLO ${selectedFamily} ${selectedZone}`
+      })) as ResourceRecord;
+      setDataset(created);
+    } catch (datasetError) {
+      setError(messageFrom(datasetError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function trainInspector() {
+    if (!dataset?.id) {
+      setError("Primero genera dataset.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setNotice("");
+    try {
+      const created = (await postJson("/v1/inspector-training-jobs", {
+        family: selectedFamily,
+        zone_id: selectedZone,
+        dataset_id: dataset.id,
+        target: "cloud-gpu"
+      })) as ResourceRecord;
+      setJob(created);
+    } catch (trainError) {
+      setError(messageFrom(trainError));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function autoAnnotateDrafts() {
+    if (!selectedImage) {
+      setError("Selecciona una imagen.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await postJson("/v1/annotations/auto-draft", {
+        family: selectedFamily,
+        zone_id: selectedZone,
+        image_uri: selectedImage.image_uri
+      }) as { source?: string; message?: string; annotations?: unknown[] };
+      const drafts = Array.isArray(response.annotations) ? response.annotations.map(normalizeLoadedBox).filter(Boolean) as AnnotationBox[] : [];
+      if (!drafts.length) {
+        const localDrafts = pieces.map(pieceToDraftBox).filter((box): box is AnnotationBox => Boolean(box));
+        if (!localDrafts.length) {
+          setError(response.message || "No hay modelo, anotaciones previas ni ROIs para auto-anotar esta zona.");
+          return;
+        }
+        mergeDraftBoxes(localDrafts);
+        setNotice("Borrador local desde ROIs. Corrige antes de guardar.");
+        return;
+      }
+      mergeDraftBoxes(drafts);
+      setNotice(response.message || "Borrador creado. Corrige antes de guardar.");
+    } catch (draftError) {
+      const localDrafts = pieces.map(pieceToDraftBox).filter((box): box is AnnotationBox => Boolean(box));
+      if (!localDrafts.length) {
+        setError(messageFrom(draftError));
+        return;
+      }
+      mergeDraftBoxes(localDrafts);
+      setNotice("Borrador local desde ROIs. Corrige antes de guardar.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function mergeDraftBoxes(drafts: AnnotationBox[]) {
+    setBoxes((current) => {
+      const existing = new Set(current.map((box) => box.element_id || box.class_name));
+      return [...current, ...drafts.filter((box) => !existing.has(box.element_id || box.class_name))];
+    });
+  }
+
+  return (
+    <>
+      <header className="topbar">
+        <div>
+          <h1>Anotar piezas</h1>
+          <p>Dibuja cajas sobre piezas visibles y genera dataset YOLO.</p>
+        </div>
+        <button className="primary" type="button" onClick={refreshImages} disabled={loading}>Actualizar</button>
+      </header>
+
+      {error ? <p className="errorText inlineError">{error}</p> : null}
+      {notice ? <p className="infoText inlineError">{notice}</p> : null}
+
+      <section className="annotationGrid">
+        <aside className="panel annotationSidebar">
+          <label>Familia<input value={selectedFamily} onChange={(event) => setSelectedFamily(event.target.value)} /></label>
+          <label>Zona<input value={selectedZone} onChange={(event) => setSelectedZone(event.target.value)} /></label>
+          <label>Split
+            <select value={split} onChange={(event) => setSplit(event.target.value as "train" | "val" | "test")}>
+              <option value="train">train</option>
+              <option value="val">val</option>
+              <option value="test">test</option>
+            </select>
+          </label>
+          <label className="fileTile">
+            <span>Subir imagen</span>
+            <strong>{uploadFile ? uploadFile.name : "Seleccionar"}</strong>
+            <small>Foto horizontal del molde</small>
+            <input type="file" accept="image/*" onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)} />
+          </label>
+          <button className="secondary fullWidth" type="button" onClick={uploadAnnotationImage} disabled={loading || !uploadFile}>Agregar imagen</button>
+          <div className="annotationImageList">
+            {images.length ? images.map((image) => (
+              <button key={image.id} className={selectedImage?.id === image.id ? "active" : ""} type="button" onClick={() => setSelectedId(image.id)}>
+                <strong>{image.id}</strong>
+                <span>{image.created_at ? formatDate(image.created_at) : image.zone_id}</span>
+              </button>
+            )) : <span className="emptyText compact">Sin imágenes.</span>}
+          </div>
+        </aside>
+
+        <section className="panel annotationPanel">
+          <ImageAnnotator image={selectedImage} pieces={pieces} boxes={boxes} onChange={setBoxes} />
+          <div className="annotationActions">
+            <button className="secondary" type="button" onClick={autoAnnotateDrafts} disabled={loading || !selectedImage}>Auto-anotar borrador</button>
+            <button className="primary" type="button" onClick={saveBoxes} disabled={loading || !selectedImage || !boxes.length}>Guardar anotaciones</button>
+            <button className="secondary" type="button" onClick={exportDataset} disabled={loading}>Generar dataset YOLO</button>
+            <button className="secondary" type="button" onClick={trainInspector} disabled={loading || !dataset}>Entrenar inspector</button>
+          </div>
+        </section>
+
+        <aside className="panel annotationSidebar">
+          <strong>Estado</strong>
+          <Metric label="Cajas" value={String(boxes.length)} />
+          <Metric label="Dataset" value={dataset?.id ? String(dataset.id) : "Pendiente"} />
+          <Metric label="Training" value={job?.id ? String(job.id) : "Pendiente"} />
+          <div className="workflowNote">
+            <strong>Proceso</strong>
+            <span>Sube imagen, auto-anota como borrador, corrige cajas y guarda. Luego genera dataset y entrena inspector.</span>
+          </div>
+          <div className="expectedChips block">
+            {pieces.map((piece) => <span key={piece.id}>{piece.name || piece.class_name}</span>)}
+          </div>
+        </aside>
+      </section>
+    </>
+  );
+}
+
+function ImageAnnotator({
+  image,
+  pieces,
+  boxes,
+  onChange
+}: {
+  image: AnnotatableImage | null;
+  pieces: ExpectedPiece[];
+  boxes: AnnotationBox[];
+  onChange: (boxes: AnnotationBox[]) => void;
+}) {
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+  const [className, setClassName] = useState(pieces[0]?.class_name || "piece");
+  const [draft, setDraft] = useState<[number, number, number, number] | null>(null);
+  const [drawing, setDrawing] = useState(false);
+
+  useEffect(() => {
+    if (pieces[0]?.class_name && !pieces.some((piece) => piece.class_name === className)) {
+      setClassName(pieces[0].class_name);
+    }
+  }, [pieces, className]);
+
+  function point(event: React.PointerEvent<HTMLDivElement>) {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return [0, 0] as const;
+    return [
+      clamp((event.clientX - rect.left) / rect.width, 0, 1),
+      clamp((event.clientY - rect.top) / rect.height, 0, 1)
+    ] as const;
+  }
+
+  function start(event: React.PointerEvent<HTMLDivElement>) {
+    if (!image) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const [x, y] = point(event);
+    setDraft([x, y, x, y]);
+    setDrawing(true);
+  }
+
+  function move(event: React.PointerEvent<HTMLDivElement>) {
+    if (!drawing || !draft) return;
+    const [x, y] = point(event);
+    setDraft([draft[0], draft[1], x, y]);
+  }
+
+  function end() {
+    if (!drawing || !draft) return;
+    const box = normalizeBox(draft);
+    setDrawing(false);
+    setDraft(null);
+    if (box[2] - box[0] < 0.01 || box[3] - box[1] < 0.01) return;
+    const piece = pieces.find((item) => item.class_name === className);
+    onChange([
+      ...boxes,
+      {
+        id: `box_${Date.now().toString(36)}`,
+        element_id: piece?.id || className,
+        class_name: className,
+        bbox: box,
+        status: "present"
+      }
+    ]);
+  }
+
+  return (
+    <div className="imageAnnotator">
+      <div className="annotatorToolbar">
+        <label>Etiqueta
+          <select value={className} onChange={(event) => setClassName(event.target.value)}>
+            {pieces.map((piece) => <option key={piece.id} value={piece.class_name}>{piece.name || piece.class_name}</option>)}
+          </select>
+        </label>
+      </div>
+      <div ref={canvasRef} className="annotatorCanvas" onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>
+        {image ? <img src={displayUrl(image.image_url || image.image_uri)} alt="Imagen para anotar" draggable={false} /> : <span>Selecciona o sube imagen.</span>}
+        <svg className="annotationOverlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          {boxes.map((box) => <AnnotationRect key={box.id} box={box} />)}
+          {draft ? <AnnotationRect box={{ id: "draft", class_name: className, bbox: normalizeBox(draft), status: "present" }} draft /> : null}
+        </svg>
+      </div>
+      <div className="boxList">
+        {boxes.map((box) => (
+          <div key={box.id}>
+            <select value={box.class_name} onChange={(event) => onChange(boxes.map((item) => item.id === box.id ? { ...item, class_name: event.target.value } : item))}>
+              {pieces.map((piece) => <option key={piece.id} value={piece.class_name}>{piece.name || piece.class_name}</option>)}
+            </select>
+            <select value={box.status} onChange={(event) => onChange(boxes.map((item) => item.id === box.id ? { ...item, status: event.target.value as AnnotationBox["status"] } : item))}>
+              <option value="present">present</option>
+              <option value="missing">missing</option>
+              <option value="uncertain">uncertain</option>
+            </select>
+            <button className="dangerButton" type="button" onClick={() => onChange(boxes.filter((item) => item.id !== box.id))}>Borrar</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AnnotationRect({ box, draft = false }: { box: AnnotationBox; draft?: boolean }) {
+  const [x1, y1, x2, y2] = box.bbox;
+  return <rect className={draft ? "draft" : ""} x={x1 * 100} y={y1 * 100} width={(x2 - x1) * 100} height={(y2 - y1) * 100} />;
+}
+
 function CaptureStillPanel({
   previewUrl,
+  referenceUrl,
   status,
   onOpen,
   onFile,
   onInspect
 }: {
   previewUrl: string;
+  referenceUrl: string;
   status: InspectionStatus;
   onOpen: () => void;
   onFile: (file: File | null) => void;
@@ -1488,6 +2630,7 @@ function CaptureStillPanel({
     <div className="captureStill">
       <div className="stillPreview">
         {previewUrl ? <img src={previewUrl} alt="Foto capturada" /> : <span>Sin foto capturada</span>}
+        {!previewUrl && referenceUrl ? <img className="referenceGhost" src={referenceUrl} alt="Referencia golden sample" /> : null}
         <div className="frame"><i /><i /><i /><i /></div>
       </div>
       <div className="cameraActions">
@@ -1505,6 +2648,8 @@ function CameraCapture({
   family,
   zoneId,
   previewUrl,
+  reference,
+  expectedPieces,
   onFile,
   onCapture,
   onCancel,
@@ -1513,6 +2658,8 @@ function CameraCapture({
   family: string;
   zoneId: string;
   previewUrl: string;
+  reference?: ZoneReference | null;
+  expectedPieces?: ExpectedPiece[];
   onFile: (file: File | null) => void;
   onCapture?: (file: File) => void | Promise<void>;
   onCancel?: () => void;
@@ -1528,6 +2675,7 @@ function CameraCapture({
   const [cameraError, setCameraError] = useState("");
   const [guidance, setGuidance] = useState<CaptureGuidanceResult | null>(null);
   const [readyFrames, setReadyFrames] = useState(0);
+  const [overlayOpacity, setOverlayOpacity] = useState(0.48);
 
   useEffect(() => {
     return () => stopCamera(streamRef);
@@ -1596,7 +2744,7 @@ function CameraCapture({
     guidancePending.current = true;
     try {
       const imageUri = await uploadSystemFile(file, family, zoneId, "inspection");
-      const response = (await postJson("/v1/capture-guidance", { family, zone_id: zoneId, image_uri: imageUri })) as CaptureGuidanceResult;
+      const response = (await postJson("/v1/capture-guidance", { family, zone_id: zoneId, image_uri: imageUri, reference_id: reference?.reference_id || null })) as CaptureGuidanceResult;
       setGuidance(response);
       stableReadyFrames.current = response.auto_capture_ready ? stableReadyFrames.current + 1 : 0;
       setReadyFrames(stableReadyFrames.current);
@@ -1630,14 +2778,22 @@ function CameraCapture({
   const livePolygon = guidance?.alignment?.mold_segmentation?.polygon_normalized;
   const guidanceItems = guidance?.guidance?.length ? guidance.guidance : ["Centra el molde dentro del marco."];
   const readiness = Math.min(3, readyFrames);
+  const referenceUrl = displayUrl(reference?.image_url || reference?.image_uri || "");
+  const guideRois = (expectedPieces || []).filter((piece) => Array.isArray(piece.roi) && piece.roi.length === 4).slice(0, 8);
 
   const stage = (
     <div className="dropzone cameraStage">
       {active ? <video ref={videoRef} playsInline muted /> : previewUrl ? <img src={previewUrl} alt="Vista previa" /> : <span>Toma o sube una foto de la zona</span>}
       {!fullscreen ? <input type="file" accept="image/*" capture="environment" onChange={(event) => onFile(event.target.files?.[0] ?? null)} /> : null}
+      {active && referenceUrl ? <img className="referenceOverlayImage" src={referenceUrl} alt="Referencia golden sample" style={{ opacity: overlayOpacity }} /> : null}
       {active && livePolygon?.length ? (
         <svg className="liveMoldPolygon" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <polygon points={polygonPoints(livePolygon)} />
+        </svg>
+      ) : null}
+      {active && guideRois.length ? (
+        <svg className="expectedGuideOverlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          {guideRois.map((piece) => <rect key={piece.id} x={(piece.roi?.[0] || 0) * 100} y={(piece.roi?.[1] || 0) * 100} width={((piece.roi?.[2] || 0) - (piece.roi?.[0] || 0)) * 100} height={((piece.roi?.[3] || 0) - (piece.roi?.[1] || 0)) * 100} />)}
         </svg>
       ) : null}
       <div className="frame"><i /><i /><i /><i /></div>
@@ -1650,11 +2806,14 @@ function CameraCapture({
         <div className="fullscreenTop">
           <div>
             <strong>Captura guiada</strong>
-            <span>Usa el celular horizontal y coloca todo el molde dentro del marco.</span>
+            <span>{reference ? `Referencia ${reference.reference_id}` : "Carga una referencia para bloquear el ángulo correcto."}</span>
           </div>
           <button className="secondary" type="button" onClick={closeFullscreen}>Cancelar</button>
         </div>
         <div className="fullscreenStageWrap">{stage}</div>
+        <label className="overlayControl">Overlay
+          <input type="range" min={20} max={75} value={Math.round(overlayOpacity * 100)} onChange={(event) => setOverlayOpacity(Number(event.target.value) / 100)} />
+        </label>
         <div className={`fullscreenGuidance ${guidance?.ok ? "isOk" : "needsWork"}`}>
           <div>
             <strong>{cameraError || guidance?.message || "Detectando molde..."}</strong>
@@ -1714,7 +2873,7 @@ function InspectionResultPanel({
 }) {
   const missingPolygons = missingPiecePolygons(result);
   const missingCount = result?.result?.piece_inspection?.missing_count ?? missingPolygons.length;
-  const resultImage = previewUrl || (result?.evidence?.overlay_image ? resolveUrl(result.evidence.overlay_image) : "");
+  const resultImage = inspectionImageUrl(result) || previewUrl;
   const identifiedModel = result?.result?.model_id || result?.result?.model_version || `${family} / ${zoneId}`;
 
   return (
@@ -1841,6 +3000,258 @@ function Metric({ label, value }: { label: string; value: string }) {
   return <div className="metricTile"><span>{label}</span><strong>{value}</strong></div>;
 }
 
+async function loadCaptureContext(family: string, zoneId: string): Promise<{ reference: ZoneReference | null; expected: ExpectedPiece[] }> {
+  const [reference, expected] = await Promise.all([
+    loadZoneReference(family, zoneId),
+    getJson(`/v1/zones/${encodeURIComponent(zoneId)}/expected?family=${encodeURIComponent(family)}`).catch(() => [])
+  ]);
+  return {
+    reference: reference as ZoneReference | null,
+    expected: Array.isArray(expected) && expected.length ? expected as ExpectedPiece[] : defaultExpectedPieces()
+  };
+}
+
+async function loadRemoteSectionPlan(family: string, moldKey: string, seedZoneId: string): Promise<MoldSectionPlan | null> {
+  const records = await getJson(`/v1/mold-section-plans?family=${encodeURIComponent(family)}`).catch(() => []);
+  const record = Array.isArray(records)
+    ? records.find((item) => {
+      const source = recordSource(item as ResourceRecord);
+      return String(source.mold_key || source.moldKey || "") === (moldKey || family);
+    }) || null
+    : null;
+  return sectionPlanFromRecord(record, family, moldKey, seedZoneId);
+}
+
+async function loadZoneReference(family: string, zoneId: string): Promise<ZoneReference | null> {
+  const records = await getJson("/v1/references").catch(() => []);
+  if (!Array.isArray(records)) return null;
+  const matches = records
+    .map((record) => recordSource(record as ResourceRecord))
+    .filter((record) => String(record.family || "") === family && String(record.zone_id || record.zoneId || "") === zoneId);
+  if (!matches.length) return null;
+  const latest = matches.sort((left, right) => Date.parse(String(right.updated_at || right.updatedAt || right.created_at || "")) - Date.parse(String(left.updated_at || left.updatedAt || left.created_at || "")))[0];
+  return latest as ZoneReference;
+}
+
+async function persistRemoteSectionPlan(plan: MoldSectionPlan): Promise<MoldSectionPlan | null> {
+  const record = await postJson(`/v1/mold-section-plans/${encodeURIComponent(plan.moldKey || plan.family)}`, {
+    family: plan.family,
+    mold_key: plan.moldKey || plan.family,
+    source: "manual",
+    sections: plan.sections.map((section, index) => ({
+      id: section.id,
+      zone_id: section.zoneId,
+      label: section.label,
+      zone_index: section.zoneIndex,
+      view: section.view,
+      required: true,
+      order: index + 1
+    }))
+  }).catch(() => null);
+  return sectionPlanFromRecord(record, plan.family, plan.moldKey, plan.sections[0]?.zoneId || DEFAULT_ZONES[0].id);
+}
+
+async function ensureValidationSession(plan: MoldSectionPlan): Promise<MoldValidationSession | null> {
+  if (!plan.sections.length) return null;
+  await persistRemoteSectionPlan(plan);
+  const session = await postJson("/v1/mold-validation-sessions", {
+    family: plan.family,
+    mold_key: plan.moldKey || plan.family
+  }).catch(() => null);
+  return normalizeValidationSession(session);
+}
+
+async function recordValidationSectionResult(
+  session: MoldValidationSession | null,
+  section: MoldSection | null,
+  payload: {
+    status: "correct" | "review" | "retake_photo";
+    inspection_id?: string;
+    image_uri?: string;
+    message?: string;
+  }
+): Promise<MoldValidationSession | null> {
+  if (!session || !section) return null;
+  const updated = await postJson(`/v1/mold-validation-sessions/${encodeURIComponent(session.id)}/sections/${encodeURIComponent(section.id)}`, {
+    section_id: section.id,
+    zone_id: section.zoneId,
+    ...payload
+  }).catch(() => null);
+  return normalizeValidationSession(updated);
+}
+
+function normalizeValidationSession(value: unknown): MoldValidationSession | null {
+  if (!value || typeof value !== "object") return null;
+  const source = value as Record<string, unknown>;
+  const status = source.status === "complete" || source.status === "in_progress" ? source.status : "pending";
+  return {
+    id: String(source.id || ""),
+    family: String(source.family || ""),
+    mold_key: source.mold_key ? String(source.mold_key) : undefined,
+    status,
+    required_count: Number(source.required_count || 0),
+    completed_count: Number(source.completed_count || 0),
+    missing_section_ids: Array.isArray(source.missing_section_ids) ? source.missing_section_ids.map(String) : [],
+    ready_section_ids: Array.isArray(source.ready_section_ids) ? source.ready_section_ids.map(String) : [],
+    section_results: source.section_results && typeof source.section_results === "object" ? source.section_results as Record<string, Record<string, unknown>> : {}
+  };
+}
+
+function validationResultsFromSession(session: MoldValidationSession): Record<string, SectionResult> {
+  const next: Record<string, SectionResult> = {};
+  for (const [sectionId, value] of Object.entries(session.section_results || {})) {
+    const status = value.status === "correct" || value.status === "review" || value.status === "retake_photo" ? value.status : "review";
+    next[sectionId] = {
+      status,
+      message: value.message ? String(value.message) : validationStatusLabel(status === "retake_photo" ? "in_progress" : session.status),
+      updatedAt: String(value.updated_at || new Date().toISOString()),
+      inspectionId: value.inspection_id ? String(value.inspection_id) : null,
+      imageUri: value.image_uri ? String(value.image_uri) : null
+    };
+  }
+  return next;
+}
+
+function sectionPlanFromRecord(record: unknown, fallbackFamily: string, fallbackMoldKey: string, seedZoneId: string): MoldSectionPlan | null {
+  if (!record || typeof record !== "object") return null;
+  const source = recordSource(record as ResourceRecord);
+  const rawSections = source.sections;
+  if (!Array.isArray(rawSections) || !rawSections.length) return null;
+  const sections = rawSections.map(normalizeSection).filter(Boolean) as MoldSection[];
+  if (!sections.length) return null;
+  return {
+    family: String(source.family || fallbackFamily),
+    moldKey: String(source.mold_key || source.moldKey || fallbackMoldKey || fallbackFamily),
+    sections,
+    updatedAt: String(source.updated_at || source.updatedAt || new Date().toISOString())
+  };
+}
+
+function defaultExpectedPieces(): ExpectedPiece[] {
+  return [
+    { id: "guide_post", class_name: "guide_post", name: "Poste guía", required: true, critical: true },
+    { id: "insert_block", class_name: "insert_block", name: "Bloque inserto", required: true, critical: true },
+    { id: "black_fastener", class_name: "black_fastener", name: "Perno negro", required: true, critical: true },
+    { id: "yellow_guide", class_name: "yellow_guide", name: "Guía amarilla", required: true, critical: true },
+    { id: "round_bushing", class_name: "round_bushing", name: "Buje circular", required: true, critical: true }
+  ];
+}
+
+function pieceToDraftBox(piece: ExpectedPiece): AnnotationBox | null {
+  if (!Array.isArray(piece.roi) || piece.roi.length !== 4) return null;
+  return {
+    id: `auto_${piece.id}_${Date.now().toString(36)}`,
+    element_id: piece.id,
+    class_name: piece.class_name,
+    bbox: normalizeBox(piece.roi as [number, number, number, number]),
+    status: "present",
+    notes: "auto_draft_roi"
+  };
+}
+
+async function validateClientImage(file: File) {
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement("canvas");
+  const maxWidth = 320;
+  const scale = Math.min(1, maxWidth / bitmap.width);
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return { ok: true, message: "Foto lista.", brightness: 0, blur: 0 };
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  const gray = new Float32Array(canvas.width * canvas.height);
+  let total = 0;
+  for (let index = 0, pixel = 0; index < data.length; index += 4, pixel += 1) {
+    const luminance = data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
+    gray[pixel] = luminance;
+    total += luminance;
+  }
+  const brightness = total / gray.length;
+  const blur = laplacianVariance(gray, canvas.width, canvas.height);
+  const tooDark = brightness < 42;
+  const tooBright = brightness > 232;
+  const tooBlurred = blur < 18;
+  if (tooDark || tooBright || tooBlurred) {
+    return {
+      ok: false,
+      message: tooBlurred ? "Retoma foto: está borrosa." : "Retoma foto: luz fuera de rango.",
+      brightness: Math.round(brightness),
+      blur: Math.round(blur)
+    };
+  }
+  return { ok: true, message: "Foto lista.", brightness: Math.round(brightness), blur: Math.round(blur) };
+}
+
+function laplacianVariance(gray: Float32Array, width: number, height: number) {
+  const values: number[] = [];
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const center = gray[y * width + x] * 4;
+      const value = center - gray[y * width + x - 1] - gray[y * width + x + 1] - gray[(y - 1) * width + x] - gray[(y + 1) * width + x];
+      values.push(value);
+    }
+  }
+  if (!values.length) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / values.length;
+}
+
+function recordToAnnotatableImage(record: ResourceRecord): AnnotatableImage | null {
+  const source = recordSource(record);
+  const imageUri = String(source.image_uri || "");
+  if (!imageUri) return null;
+  return {
+    id: String(source.image_id || source.id || imageIdFromUri(imageUri)),
+    image_uri: imageUri,
+    image_url: displayUrl(String(source.image_url || imageUri)),
+    family: String(source.family || ""),
+    zone_id: String(source.zone_id || ""),
+    mold_id: source.mold_id ? String(source.mold_id) : null,
+    session_id: source.session_id ? String(source.session_id) : null,
+    created_at: source.created_at ? String(source.created_at) : undefined
+  };
+}
+
+function uniqueImages(images: AnnotatableImage[]) {
+  const seen = new Set<string>();
+  return images.filter((image) => {
+    const key = image.image_uri || image.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeLoadedBox(value: unknown): AnnotationBox | null {
+  if (!value || typeof value !== "object") return null;
+  const source = value as Record<string, unknown>;
+  const bbox = source.bbox as number[] | undefined;
+  if (!Array.isArray(bbox) || bbox.length !== 4) return null;
+  return {
+    id: String(source.id || `box_${Math.random().toString(36).slice(2)}`),
+    element_id: source.element_id ? String(source.element_id) : null,
+    class_name: String(source.class_name || "piece"),
+    bbox: normalizeBox(bbox as [number, number, number, number]),
+    status: source.status === "missing" || source.status === "uncertain" ? source.status : "present",
+    notes: source.notes ? String(source.notes) : null
+  };
+}
+
+function normalizeBox(box: [number, number, number, number]): [number, number, number, number] {
+  const x1 = clamp(Math.min(box[0], box[2]), 0, 1);
+  const y1 = clamp(Math.min(box[1], box[3]), 0, 1);
+  const x2 = clamp(Math.max(box[0], box[2]), 0, 1);
+  const y2 = clamp(Math.max(box[1], box[3]), 0, 1);
+  return [x1, y1, x2, y2];
+}
+
+function imageIdFromUri(imageUri: string) {
+  if (imageUri.startsWith("local://")) return imageUri.replace("local://", "");
+  const clean = imageUri.split("?")[0].split("#")[0];
+  return (clean.split("/").pop() || clean || `img_${Date.now().toString(36)}`).replace(/[^a-zA-Z0-9_]+/g, "_");
+}
+
 async function loadZones(): Promise<Zone[]> {
   const supabaseZones = await selectSupabase("zones");
   const normalized = supabaseZones.map((item) => ({
@@ -1854,25 +3265,53 @@ async function loadZones(): Promise<Zone[]> {
 }
 
 async function loadRecords(table: string, endpoint?: string): Promise<ResourceRecord[]> {
-  const dbRecords = await selectSupabase(table);
-  if (dbRecords.length) return dbRecords;
-  if (!endpoint) return [];
-  const backendRecords = await getJson(endpoint).catch(() => []);
-  return Array.isArray(backendRecords) ? backendRecords : [];
+  const [dbRecords, backendRecords] = await Promise.all([
+    selectSupabase(table),
+    endpoint ? getJson(endpoint).catch(() => []) : Promise.resolve([])
+  ]);
+  return dedupeRecords([
+    ...dbRecords,
+    ...(Array.isArray(backendRecords) ? backendRecords as ResourceRecord[] : [])
+  ]);
+}
+
+function dedupeRecords(records: ResourceRecord[]) {
+  const seen = new Set<string>();
+  return records
+    .filter((record) => {
+      const source = recordSource(record);
+      const key = String(source.id || record.id || `${source.family || ""}:${source.zone_id || ""}:${source.created_at || record.created_at || ""}`);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((left, right) => Date.parse(String(recordSource(right).created_at || right.created_at || "")) - Date.parse(String(recordSource(left).created_at || left.created_at || "")));
 }
 
 async function selectSupabase(table: string): Promise<ResourceRecord[]> {
-  const { data, error } = await supabase.from(table).select("*").limit(100).order("created_at", { ascending: false });
+  if (!SUPABASE_ENABLED) return [];
+  const { data, error } = await Promise.race([
+    supabase.from(table).select("*").limit(100).order("created_at", { ascending: false }),
+    timeoutValue<{ data: ResourceRecord[]; error: null }>({ data: [], error: null }, 1200)
+  ]);
   if (error) return [];
   return (data || []) as ResourceRecord[];
 }
 
 async function insertSupabase(table: string, payload: Record<string, unknown>) {
+  if (!SUPABASE_ENABLED) return;
   try {
-    await supabase.from(table).upsert(payload).select().maybeSingle();
+    await Promise.race([
+      supabase.from(table).upsert(payload).select().maybeSingle(),
+      timeoutValue(null, 1200)
+    ]);
   } catch {
     return;
   }
+}
+
+function timeoutValue<T>(value: T, timeoutMs: number) {
+  return new Promise<T>((resolve) => window.setTimeout(() => resolve(value), timeoutMs));
 }
 
 async function uploadFiles(files: File[], family: string, zoneId: string, purpose: string) {
@@ -1944,13 +3383,33 @@ async function postJson(path: string, body: unknown) {
 }
 
 async function getJson(path: string) {
-  const response = await fetch(resolveUrl(path));
+  const response = await fetch(resolveUrl(path), { cache: "no-store" });
   if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
   return response.json();
 }
 
 function resolveUrl(path: string) {
   return path.startsWith("http") ? path : `${API_BASE}${path}`;
+}
+
+function displayUrl(path: string) {
+  if (!path) return "";
+  if (path.startsWith("local://")) return resolveUrl(`/v1/uploads/${path.replace("local://", "")}/file`);
+  if (path.startsWith("/")) return resolveUrl(path);
+  return path;
+}
+
+function isLocalRuntime() {
+  const apiBase = API_BASE.toLowerCase();
+  const hostname = typeof window === "undefined" ? "" : window.location.hostname.toLowerCase();
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    apiBase.includes("localhost") ||
+    apiBase.includes("127.0.0.1") ||
+    apiBase.includes("[::1]")
+  );
 }
 
 function makeId(prefix: string, family: string, zoneId: string) {
@@ -1988,6 +3447,14 @@ function statusLabel(status: InspectionStatus) {
   return { idle: "Esperando", uploading: "Subiendo", running: "Validando", correct: "Correcto", review: "Revisar", retake_photo: "Tomar otra foto", error: "Error" }[status];
 }
 
+function validationStatusLabel(status: MoldValidationSession["status"]) {
+  return { pending: "Pendiente", in_progress: "En curso", complete: "Completo" }[status];
+}
+
+function syncStateLabel(status: "local" | "saving" | "saved" | "error") {
+  return { local: "Local", saving: "Guardando", saved: "Servidor", error: "Local" }[status];
+}
+
 function formatNumber(value: number | null | undefined) {
   return typeof value === "number" ? value.toFixed(4) : "-";
 }
@@ -2002,6 +3469,192 @@ function formatUnknown(value: unknown) {
 
 function formatPercentValue(value: unknown) {
   return typeof value === "number" ? `${Math.round(value * 100)}%` : value ? String(value) : "-";
+}
+
+function inspectionSources(inspections: ResourceRecord[]): NormalizedInspection[] {
+  return inspections.map((inspection) => {
+    const source = recordSource(inspection);
+    const result = source.result as InspectionResult["result"] | undefined;
+    const rawStatus = String(source.status || "review");
+    const status = rawStatus === "correct" || rawStatus === "retake_photo" || rawStatus === "review" ? rawStatus : "review";
+    const family = String(source.family || result?.model_id || DEFAULT_ZONES[0].family).split("/")[0].trim() || DEFAULT_ZONES[0].family;
+    const missingCount = Number(result?.piece_inspection?.missing_count || source.missing_count || 0);
+    return {
+      id: String(source.id || inspection.id || `inspection_${Date.now().toString(36)}`),
+      family,
+      zoneId: String(source.zone_id || result?.model_version || DEFAULT_ZONES[0].id),
+      status,
+      createdAt: String(source.created_at || inspection.created_at || ""),
+      message: source.message ? String(source.message) : "",
+      imageUri: source.image_uri ? String(source.image_uri) : undefined,
+      missingCount: Number.isFinite(missingCount) ? missingCount : 0
+    };
+  });
+}
+
+function buildLeadershipMetrics(
+  molds: MoldSummary[],
+  candidates: ResourceRecord[],
+  jobs: ResourceRecord[],
+  inspections: ResourceRecord[]
+): LeadershipMetrics {
+  const normalized = inspectionSources(inspections);
+  const correctCount = normalized.filter((inspection) => inspection.status === "correct").length;
+  const reviewCount = normalized.filter((inspection) => inspection.status === "review").length;
+  const retakeCount = normalized.filter((inspection) => inspection.status === "retake_photo").length;
+  const latestTraining = jobs
+    .map((job) => String(recordSource(job).updated_at || recordSource(job).created_at || job.updated_at || job.created_at || ""))
+    .filter(Boolean)
+    .sort((left, right) => Date.parse(right) - Date.parse(left))[0];
+  const promotedMetrics = candidateMetrics(candidates.find((candidate) => Boolean(recordSource(candidate).promoted)) || candidates[0]);
+  return {
+    totalValidations: normalized.length,
+    correctCount,
+    reviewCount,
+    retakeCount,
+    retakeRate: normalized.length ? retakeCount / normalized.length : 0,
+    activeMolds: molds.length,
+    missingPieces: normalized.reduce((total, inspection) => total + inspection.missingCount, 0),
+    latestTraining,
+    falsePassRate: promotedMetrics.falsePassRate,
+    validationRecall: promotedMetrics.validationRecall
+  };
+}
+
+function buildMoldValidationSummaries(
+  molds: MoldSummary[],
+  candidates: ResourceRecord[],
+  inspections: ResourceRecord[]
+): MoldValidationSummary[] {
+  const rows = new Map<string, MoldValidationSummary>();
+  for (const mold of molds) {
+    rows.set(mold.id, {
+      id: mold.id,
+      name: mold.name,
+      family: mold.family,
+      zoneId: mold.zoneId,
+      status: mold.status,
+      validations: 0,
+      correct: 0,
+      review: 0,
+      retake: 0,
+      retakeRate: 0,
+      missingPieces: 0,
+      lastInspection: mold.lastInspection,
+      lastTraining: mold.lastTraining,
+      confidence: mold.confidence,
+      falsePassRate: mold.falsePassRate,
+      validationRecall: null
+    });
+  }
+
+  for (const candidate of candidates) {
+    const source = recordSource(candidate);
+    const family = String(source.family || "");
+    if (!family) continue;
+    const zoneId = String(source.zone_id || DEFAULT_ZONES[0].id);
+    const id = `${family}:${zoneId}`;
+    const row = rows.get(id);
+    if (!row) continue;
+    const metrics = candidateMetrics(candidate);
+    rows.set(id, {
+      ...row,
+      status: source.promoted ? "ready" : row.status,
+      confidence: metrics.confidence ?? row.confidence,
+      falsePassRate: metrics.falsePassRate ?? row.falsePassRate,
+      validationRecall: metrics.validationRecall ?? row.validationRecall
+    });
+  }
+
+  for (const inspection of inspectionSources(inspections)) {
+    const id = `${inspection.family}:${inspection.zoneId}`;
+    const current = rows.get(id) || {
+      id,
+      name: titleFromSlug(inspection.family),
+      family: inspection.family,
+      zoneId: inspection.zoneId,
+      status: "needs_data" as MoldSummary["status"],
+      validations: 0,
+      correct: 0,
+      review: 0,
+      retake: 0,
+      retakeRate: 0,
+      missingPieces: 0,
+      confidence: null,
+      falsePassRate: null,
+      validationRecall: null
+    };
+    const isLatest = !current.lastInspection || Date.parse(inspection.createdAt || "") >= Date.parse(current.lastInspection || "");
+    const validations = current.validations + 1;
+    const correct = current.correct + (inspection.status === "correct" ? 1 : 0);
+    const review = current.review + (inspection.status === "review" ? 1 : 0);
+    const retake = current.retake + (inspection.status === "retake_photo" ? 1 : 0);
+    rows.set(id, {
+      ...current,
+      validations,
+      correct,
+      review,
+      retake,
+      retakeRate: validations ? retake / validations : 0,
+      missingPieces: current.missingPieces + inspection.missingCount,
+      lastInspection: isLatest ? inspection.createdAt : current.lastInspection,
+      latestImageUri: isLatest ? inspection.imageUri : current.latestImageUri,
+      latestMessage: isLatest ? inspection.message : current.latestMessage
+    });
+  }
+
+  return Array.from(rows.values()).sort((left, right) => Date.parse(right.lastInspection || "") - Date.parse(left.lastInspection || ""));
+}
+
+function buildInspectionTrend(inspections: ResourceRecord[]): InspectionTrendPoint[] {
+  const points = new Map<string, InspectionTrendPoint>();
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - offset);
+    const key = localDateKey(date);
+    points.set(key, { date: key, total: 0, correct: 0, review: 0, retake: 0 });
+  }
+  for (const inspection of inspectionSources(inspections)) {
+    if (!inspection.createdAt || !withinDays(inspection.createdAt, 7)) continue;
+    const key = localDateKey(new Date(inspection.createdAt));
+    const point = points.get(key);
+    if (!point) continue;
+    point.total += 1;
+    if (inspection.status === "correct") point.correct += 1;
+    if (inspection.status === "review") point.review += 1;
+    if (inspection.status === "retake_photo") point.retake += 1;
+  }
+  return Array.from(points.values());
+}
+
+function candidateMetrics(candidate?: ResourceRecord) {
+  const metrics = candidate ? (recordSource(candidate).metrics || {}) as Record<string, unknown> : {};
+  return {
+    confidence: typeof metrics.confidence === "number" ? metrics.confidence : null,
+    falsePassRate: typeof metrics.false_pass_rate === "number" ? metrics.false_pass_rate : null,
+    validationRecall: typeof metrics.validation_recall === "number" ? metrics.validation_recall : null
+  };
+}
+
+function withinDays(value: string | undefined, days: number) {
+  if (!value) return true;
+  const time = Date.parse(value);
+  if (Number.isNaN(time)) return true;
+  return Date.now() - time <= days * 24 * 60 * 60 * 1000;
+}
+
+function shortDay(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("es-MX", { weekday: "short" }).format(date).replace(".", "");
+}
+
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function buildMoldSummaries(
@@ -2188,6 +3841,86 @@ function formatDate(value?: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Sin fecha";
   return new Intl.DateTimeFormat("es-MX", { dateStyle: "medium", timeStyle: "short" }).format(date);
+}
+
+function loadSectionPlan(family: string, moldKey: string, seedZoneId: string): MoldSectionPlan {
+  try {
+    const raw = window.localStorage.getItem(sectionPlanStorageKey(family, moldKey));
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<MoldSectionPlan>;
+      if (parsed.family && Array.isArray(parsed.sections) && parsed.sections.length) {
+        return {
+          moldKey: parsed.moldKey || moldKey || family,
+          family: parsed.family,
+          sections: parsed.sections.map(normalizeSection).filter(Boolean) as MoldSection[],
+          updatedAt: parsed.updatedAt || new Date().toISOString()
+        };
+      }
+    }
+  } catch {
+    // fall through to default section plan
+  }
+  return {
+    moldKey: moldKey || family,
+    family,
+    sections: [{
+      id: "section_01_front",
+      zoneId: seedZoneId || DEFAULT_ZONES[0].id,
+      label: "Zona 1 / frente",
+      zoneIndex: 1,
+      view: "front"
+    }],
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function persistSectionPlan(plan: MoldSectionPlan) {
+  window.localStorage.setItem(sectionPlanStorageKey(plan.family, plan.moldKey), JSON.stringify(plan));
+}
+
+function buildSectionPlan(family: string, moldKey: string, zoneCount: number, views: MoldViewSide[]): MoldSectionPlan {
+  const sections: MoldSection[] = [];
+  for (let zoneIndex = 1; zoneIndex <= zoneCount; zoneIndex += 1) {
+    for (const view of views) {
+      const zoneToken = `zona_${String(zoneIndex).padStart(2, "0")}_${view}`;
+      sections.push({
+        id: `section_${String(zoneIndex).padStart(2, "0")}_${view}`,
+        zoneId: zoneToken,
+        label: `Zona ${zoneIndex} / ${viewLabel(view).toLowerCase()}`,
+        zoneIndex,
+        view
+      });
+    }
+  }
+  return { moldKey: moldKey || family, family, sections, updatedAt: new Date().toISOString() };
+}
+
+function selectedViewsFromPlan(plan: MoldSectionPlan): MoldViewSide[] {
+  const views = VIEW_OPTIONS.map((option) => option.value).filter((view) => plan.sections.some((section) => section.view === view));
+  return views.length ? views : ["front"];
+}
+
+function normalizeSection(value: unknown): MoldSection | null {
+  if (!value || typeof value !== "object") return null;
+  const source = value as Record<string, unknown>;
+  const view = source.view === "left" || source.view === "right" || source.view === "front" ? source.view : "front";
+  const zoneIndex = Number(source.zoneIndex || source.zone_index || 1);
+  const zoneId = String(source.zoneId || source.zone_id || `zona_${String(zoneIndex).padStart(2, "0")}_${view}`);
+  return {
+    id: String(source.id || `section_${String(zoneIndex).padStart(2, "0")}_${view}`),
+    zoneId,
+    label: String(source.label || `Zona ${zoneIndex} / ${viewLabel(view).toLowerCase()}`),
+    zoneIndex: Number.isFinite(zoneIndex) ? zoneIndex : 1,
+    view
+  };
+}
+
+function viewLabel(view: MoldViewSide) {
+  return VIEW_OPTIONS.find((option) => option.value === view)?.label || view;
+}
+
+function sectionPlanStorageKey(family: string, moldKey: string) {
+  return `mold_vision_section_plan:${family}:${moldKey || family}`;
 }
 
 function loadMoldDrafts(): MoldDrafts {

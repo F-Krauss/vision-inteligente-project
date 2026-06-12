@@ -17,11 +17,13 @@ cloud = [
   "google-cloud-storage>=2.18",
   "google-cloud-firestore>=2.19",
   "google-cloud-aiplatform>=1.71",
+  "google-genai>=1.10",
   "python-multipart>=0.0.12",
 ]
 vision = [
   "ultralytics>=8.3",
   "pillow>=10",
+  "pillow-heif>=0.20",
   "pyyaml>=6",
   "opencv-python>=4.9",
   "scikit-image>=0.23",

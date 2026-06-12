@@ -4,10 +4,12 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 InspectionStatus = Literal["correct", "review", "retake_photo"]
+MoldViewSide = Literal["left", "right", "front"]
+MoldValidationStatus = Literal["pending", "in_progress", "complete"]
 
 
 def utc_now() -> str:
@@ -23,7 +25,7 @@ class UploadPresignRequest(BaseModel):
     content_type: str = "image/jpeg"
     family: str | None = None
     zone_id: str | None = None
-    purpose: Literal["inspection", "dataset", "segmenter"] = "inspection"
+    purpose: Literal["inspection", "dataset", "segmenter", "reference", "annotation"] = "inspection"
 
 
 class UploadPresignResponse(BaseModel):
@@ -143,6 +145,7 @@ class CaptureGuidanceRequest(BaseModel):
     family: str
     zone_id: str
     image_uri: str
+    reference_id: str | None = None
 
 
 class CaptureGuidanceResponse(BaseModel):
@@ -152,6 +155,224 @@ class CaptureGuidanceResponse(BaseModel):
     guidance: list[str] = Field(default_factory=list)
     quality: dict[str, Any] = Field(default_factory=dict)
     alignment: dict[str, Any] = Field(default_factory=dict)
+
+
+class ReferenceCreateRequest(BaseModel):
+    family: str
+    image_uri: str
+    reference_id: str = "default"
+    mask_uri: str | None = None
+    tolerance: dict[str, float] = Field(default_factory=dict)
+
+
+class ReferenceRecord(BaseModel):
+    id: str
+    created_at: str = Field(default_factory=utc_now)
+    updated_at: str = Field(default_factory=utc_now)
+    family: str
+    zone_id: str
+    reference_id: str
+    image_uri: str
+    image_url: str | None = None
+    mask_uri: str | None = None
+    mask_url: str | None = None
+    active: bool = True
+    width: int | None = None
+    height: int | None = None
+    tolerance: dict[str, float] = Field(default_factory=dict)
+
+
+class MoldSectionPayload(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    zone_id: str = Field(alias="zoneId")
+    label: str
+    zone_index: int = Field(default=1, alias="zoneIndex", ge=1)
+    view: MoldViewSide = "front"
+    required: bool = True
+    order: int = 0
+    notes: str | None = None
+
+
+class MoldSectionPlanUpsertRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    family: str
+    mold_key: str | None = Field(default=None, alias="moldKey")
+    mold_id: str | None = Field(default=None, alias="moldId")
+    name: str | None = None
+    source: Literal["manual", "suggested"] = "manual"
+    sections: list[MoldSectionPayload]
+    suggestion_input: dict[str, Any] = Field(default_factory=dict)
+
+
+class MoldSectionPlanRecord(BaseModel):
+    id: str
+    created_at: str = Field(default_factory=utc_now)
+    updated_at: str = Field(default_factory=utc_now)
+    family: str
+    mold_key: str
+    mold_id: str | None = None
+    name: str | None = None
+    source: str = "manual"
+    sections: list[MoldSectionPayload]
+    section_count: int = 0
+    required_count: int = 0
+    suggestion_input: dict[str, Any] = Field(default_factory=dict)
+
+
+class MoldValidationSessionCreateRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    family: str
+    mold_key: str | None = Field(default=None, alias="moldKey")
+    mold_id: str | None = Field(default=None, alias="moldId")
+    operator_id: str | None = None
+    plan_id: str | None = None
+
+
+class MoldValidationSectionUpdateRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    section_id: str | None = Field(default=None, alias="sectionId")
+    zone_id: str | None = Field(default=None, alias="zoneId")
+    status: InspectionStatus
+    inspection_id: str | None = None
+    image_uri: str | None = None
+    message: str | None = None
+    reviewed_by: str | None = None
+    notes: str | None = None
+
+
+class MoldValidationSessionRecord(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("moldval"))
+    created_at: str = Field(default_factory=utc_now)
+    updated_at: str = Field(default_factory=utc_now)
+    completed_at: str | None = None
+    family: str
+    mold_key: str
+    mold_id: str | None = None
+    operator_id: str | None = None
+    plan_id: str
+    status: MoldValidationStatus = "pending"
+    required_count: int = 0
+    completed_count: int = 0
+    missing_section_ids: list[str] = Field(default_factory=list)
+    ready_section_ids: list[str] = Field(default_factory=list)
+    required_sections: list[MoldSectionPayload] = Field(default_factory=list)
+    section_results: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+
+class AlignQualityRequest(BaseModel):
+    family: str
+    zone_id: str
+    image_uri: str
+    reference_id: str | None = None
+
+
+class AlignQualityResponse(BaseModel):
+    status: InspectionStatus
+    ok: bool
+    auto_capture_ready: bool = False
+    message: str
+    guidance: list[str] = Field(default_factory=list)
+    quality: dict[str, Any] = Field(default_factory=dict)
+    alignment: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExpectedPieceRecord(BaseModel):
+    id: str
+    class_name: str
+    name: str | None = None
+    roi: list[float] | None = None
+    required: bool = True
+    critical: bool = True
+
+
+class PieceAnnotationPayload(BaseModel):
+    id: str | None = None
+    element_id: str | None = None
+    class_name: str
+    bbox: list[float]
+    status: Literal["present", "missing", "uncertain"] = "present"
+    notes: str | None = None
+
+
+class AnnotationCreateRequest(BaseModel):
+    image_id: str | None = None
+    image_uri: str
+    family: str
+    zone_id: str
+    mold_id: str | None = None
+    session_id: str | None = None
+    operator_id: str | None = None
+    reference_id: str | None = None
+    split: Literal["train", "val", "test"] = "train"
+    annotations: list[PieceAnnotationPayload]
+
+
+class AutoAnnotationDraftRequest(BaseModel):
+    family: str
+    zone_id: str
+    image_uri: str
+    model_version_id: str | None = None
+    confidence: float = Field(default=0.25, ge=0.0, le=1.0)
+
+
+class AutoAnnotationDraftResponse(BaseModel):
+    family: str
+    zone_id: str
+    image_uri: str
+    source: Literal["model", "annotation_template", "roi", "empty"]
+    model_version_id: str | None = None
+    annotations: list[PieceAnnotationPayload] = Field(default_factory=list)
+    message: str
+
+
+class AnnotationRecord(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("ann"))
+    created_at: str = Field(default_factory=utc_now)
+    updated_at: str = Field(default_factory=utc_now)
+    image_id: str
+    image_uri: str
+    image_url: str | None = None
+    family: str
+    zone_id: str
+    mold_id: str | None = None
+    session_id: str | None = None
+    operator_id: str | None = None
+    reference_id: str | None = None
+    split: Literal["train", "val", "test"] = "train"
+    annotations: list[PieceAnnotationPayload]
+    box_count: int = 0
+
+
+class DatasetFromAnnotationsRequest(BaseModel):
+    family: str
+    zone_id: str
+    name: str = "Dataset desde anotaciones"
+    annotation_ids: list[str] = Field(default_factory=list)
+
+
+class DatasetFromAnnotationsResponse(BaseModel):
+    id: str = Field(default_factory=lambda: new_id("dataset"))
+    created_at: str = Field(default_factory=utc_now)
+    family: str
+    zone_id: str
+    name: str
+    status: str = "ready_for_training"
+    dataset_uri: str
+    data_yaml_uri: str
+    manifest_uri: str
+    mask_uri: str
+    image_count: int
+    box_count: int
+    class_count: int
+    train_count: int
+    val_count: int
+    test_count: int
+    preview_image_uri: str | None = None
 
 
 class SegmenterAnnotation(BaseModel):

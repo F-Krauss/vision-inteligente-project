@@ -1,0 +1,353 @@
+{
+  "slug": "try-photos-last-mold-with-without_pieces__vista_frontal__front_center_medium",
+  "golden_image": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_center_medium/present/IMG_2570.jpg",
+  "source_registration": "claude demo annotation (demo_IMG_2570_annotated.jpg)",
+  "zone_polygon_norm": [
+    [
+      0.0,
+      0.31
+    ],
+    [
+      0.01,
+      0.23
+    ],
+    [
+      0.06,
+      0.215
+    ],
+    [
+      0.155,
+      0.21
+    ],
+    [
+      0.165,
+      0.265
+    ],
+    [
+      0.24,
+      0.255
+    ],
+    [
+      0.52,
+      0.24
+    ],
+    [
+      0.545,
+      0.205
+    ],
+    [
+      0.66,
+      0.2
+    ],
+    [
+      0.69,
+      0.23
+    ],
+    [
+      0.775,
+      0.225
+    ],
+    [
+      0.78,
+      0.205
+    ],
+    [
+      0.97,
+      0.205
+    ],
+    [
+      0.975,
+      0.26
+    ],
+    [
+      1.0,
+      0.27
+    ],
+    [
+      1.0,
+      1.0
+    ],
+    [
+      0.0,
+      1.0
+    ]
+  ],
+  "parts": [
+    {
+      "id": "P1",
+      "type": "plate",
+      "bbox_norm": [
+        0.265,
+        0.25,
+        0.645,
+        0.345
+      ],
+      "description": "upper auxiliary plate group"
+    },
+    {
+      "id": "P2",
+      "type": "plate",
+      "bbox_norm": [
+        0.245,
+        0.36,
+        0.405,
+        0.615
+      ],
+      "description": "left wing plate"
+    },
+    {
+      "id": "P3",
+      "type": "plate",
+      "bbox_norm": [
+        0.395,
+        0.345,
+        0.505,
+        0.65
+      ],
+      "description": "central spine plate"
+    },
+    {
+      "id": "P4",
+      "type": "plate",
+      "bbox_norm": [
+        0.495,
+        0.355,
+        0.645,
+        0.61
+      ],
+      "description": "right wing plate"
+    },
+    {
+      "id": "P5",
+      "type": "plate",
+      "bbox_norm": [
+        0.64,
+        0.385,
+        0.755,
+        0.565
+      ],
+      "description": "right column plate"
+    },
+    {
+      "id": "C1",
+      "type": "component",
+      "bbox_norm": [
+        0.245,
+        0.285,
+        0.302,
+        0.348
+      ],
+      "description": "cylindrical boss with cap (left of upper plates)"
+    },
+    {
+      "id": "C2",
+      "type": "component",
+      "bbox_norm": [
+        0.645,
+        0.292,
+        0.715,
+        0.372
+      ],
+      "description": "cylindrical valve body (right of upper plates)"
+    },
+    {
+      "id": "C3",
+      "type": "component",
+      "bbox_norm": [
+        0.712,
+        0.312,
+        0.882,
+        0.398
+      ],
+      "description": "guide bushing #1 (bronze ring)"
+    },
+    {
+      "id": "C4",
+      "type": "component",
+      "bbox_norm": [
+        0.735,
+        0.462,
+        0.905,
+        0.565
+      ],
+      "description": "guide bushing #2 (bronze ring)"
+    },
+    {
+      "id": "C5",
+      "type": "component",
+      "bbox_norm": [
+        0.082,
+        0.528,
+        0.172,
+        0.608
+      ],
+      "description": "round cam disc (left mold face)"
+    },
+    {
+      "id": "C6",
+      "type": "component",
+      "bbox_norm": [
+        0.702,
+        0.548,
+        0.818,
+        0.632
+      ],
+      "description": "capped cylinder boss (right mold face)"
+    },
+    {
+      "id": "C7",
+      "type": "component",
+      "bbox_norm": [
+        0.868,
+        0.562,
+        0.995,
+        0.655
+      ],
+      "description": "right edge block"
+    },
+    {
+      "id": "C8",
+      "type": "component",
+      "bbox_norm": [
+        0.812,
+        0.818,
+        0.995,
+        0.975
+      ],
+      "description": "bottom-right mounted bracket"
+    },
+    {
+      "id": "C9",
+      "type": "component",
+      "bbox_norm": [
+        0.308,
+        0.585,
+        0.382,
+        0.655
+      ],
+      "description": "left retainer bracket (below left wing)"
+    },
+    {
+      "id": "C10",
+      "type": "component",
+      "bbox_norm": [
+        0.498,
+        0.622,
+        0.578,
+        0.705
+      ],
+      "description": "center retainer bracket (below spine)"
+    },
+    {
+      "id": "S1",
+      "type": "small",
+      "bbox_norm": [
+        0.272,
+        0.368,
+        0.312,
+        0.4
+      ],
+      "description": "oval insert, left wing top"
+    },
+    {
+      "id": "S2",
+      "type": "small",
+      "bbox_norm": [
+        0.368,
+        0.355,
+        0.408,
+        0.388
+      ],
+      "description": "oval insert, spine left"
+    },
+    {
+      "id": "S3",
+      "type": "small",
+      "bbox_norm": [
+        0.535,
+        0.36,
+        0.575,
+        0.392
+      ],
+      "description": "oval insert, right wing top"
+    },
+    {
+      "id": "S4",
+      "type": "small",
+      "bbox_norm": [
+        0.605,
+        0.372,
+        0.645,
+        0.405
+      ],
+      "description": "oval insert, right wing outer"
+    },
+    {
+      "id": "S5",
+      "type": "small",
+      "bbox_norm": [
+        0.288,
+        0.508,
+        0.392,
+        0.578
+      ],
+      "description": "rectangular window insert, left wing"
+    },
+    {
+      "id": "S6",
+      "type": "small",
+      "bbox_norm": [
+        0.508,
+        0.498,
+        0.605,
+        0.572
+      ],
+      "description": "rectangular window insert, right wing"
+    },
+    {
+      "id": "S7",
+      "type": "small",
+      "bbox_norm": [
+        0.428,
+        0.398,
+        0.488,
+        0.512
+      ],
+      "description": "keyhole cavity, central spine"
+    },
+    {
+      "id": "piece_01",
+      "type": "removable",
+      "bbox_norm": [
+        0.3054,
+        0.5564,
+        0.3683,
+        0.5914
+      ],
+      "description": "removable piece localized by removal-pair diff"
+    },
+    {
+      "id": "piece_02",
+      "type": "removable",
+      "bbox_norm": [
+        0.8799,
+        0.6634,
+        0.9909,
+        0.6984
+      ],
+      "description": "removable piece localized by removal-pair diff"
+    },
+    {
+      "id": "piece_03",
+      "type": "removable",
+      "bbox_norm": [
+        0.565,
+        0.6092,
+        0.6,
+        0.6442
+      ],
+      "description": "removable piece localized by removal-pair diff"
+    }
+  ],
+  "n_parts": 25
+}

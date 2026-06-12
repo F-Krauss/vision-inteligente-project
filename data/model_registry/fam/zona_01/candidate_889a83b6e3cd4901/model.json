@@ -1,0 +1,9 @@
+{
+  "type": "annotation_template_detector",
+  "family": "fam",
+  "zone_id": "zona_01",
+  "candidate_id": "candidate_889a83b6e3cd4901",
+  "created_at": "2026-06-07T09:03:04.610725+00:00",
+  "source": "annotations",
+  "boxes": []
+}

@@ -6,6 +6,7 @@ from typing import Any
 from mold_inspection.mold_segmenter import segment_mold
 
 from .pipeline import evaluate_capture_quality
+from .references import get_zone_reference
 from .schemas import CaptureGuidanceRequest, CaptureGuidanceResponse
 from .storage import ObjectStorage
 from .store import MetadataStore
@@ -147,6 +148,17 @@ def _reference_path(
     store: MetadataStore,
     model_registry_dir: Path,
 ) -> Path | None:
+    zone_reference = get_zone_reference(
+        request.zone_id,
+        store,
+        family=request.family,
+        reference_id=request.reference_id,
+    )
+    if zone_reference and zone_reference.get("image_uri"):
+        try:
+            return objects.materialize(str(zone_reference["image_uri"]))
+        except ValueError:
+            pass
     model_anchor = model_registry_dir / request.family / request.zone_id / "best_model" / "anchor.jpg"
     if model_anchor.exists():
         return model_anchor

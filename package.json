@@ -1,0 +1,25 @@
+{
+  "name": "vision-inteligente-project",
+  "version": "1.0.0",
+  "description": "Proyecto base en Python para inspeccionar moldes por zonas usando fotos de celular. El flujo esta disenado para detectar presencia, ausencia y casos dudosos de elementos criticos, priorizando falso rechazo sobre falso aprobado.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/F-Krauss/vision-inteligente-project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/F-Krauss/vision-inteligente-project/issues"
+  },
+  "homepage": "https://github.com/F-Krauss/vision-inteligente-project#readme"
+}

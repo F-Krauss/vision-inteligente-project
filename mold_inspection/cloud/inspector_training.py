@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+import json
 
 from .config import CloudSettings
 from .schemas import (
@@ -31,7 +32,7 @@ def create_inspector_training_job(
     if not mask_uri:
         raise ValueError("Inspector training requires mask_uri.")
 
-    candidates = _create_candidates(request.family, request.zone_id, settings, manifest_uri, mask_uri)
+    candidates = _create_candidates(request.family, request.zone_id, settings, store, manifest_uri, mask_uri)
     best = min(candidates, key=lambda item: (item["metrics"]["false_pass_rate"], -item["metrics"]["validation_recall"], item["metrics"]["loss"]))
     best["promoted"] = True
     best["promoted_at"] = utc_now()
@@ -111,7 +112,14 @@ def _resolve_dataset(request: InspectorTrainingJobCreateRequest, store: Metadata
     return matches[-1] if matches else None
 
 
-def _create_candidates(family: str, zone_id: str, settings: CloudSettings, manifest_uri: str, mask_uri: str) -> list[dict[str, Any]]:
+def _create_candidates(
+    family: str,
+    zone_id: str,
+    settings: CloudSettings,
+    store: MetadataStore,
+    manifest_uri: str,
+    mask_uri: str,
+) -> list[dict[str, Any]]:
     output_base = _model_output_uri(settings, family, zone_id)
     specs = [
         ("presence_absence_yolo_seg", 0.19, 0.96, 0.0, 0.91),
@@ -121,6 +129,11 @@ def _create_candidates(family: str, zone_id: str, settings: CloudSettings, manif
     candidates: list[dict[str, Any]] = []
     for name, loss, recall, false_pass, confidence in specs:
         candidate_id = new_id("candidate")
+        model_uri = f"{output_base}/{candidate_id}/model.pt"
+        artifact_type = "queued_model"
+        if name == "presence_absence_yolo_seg":
+            model_uri = _write_annotation_template_model(store, family, zone_id, output_base, candidate_id)
+            artifact_type = "annotation_template_detector"
         candidates.append(
             {
                 "id": candidate_id,
@@ -130,7 +143,8 @@ def _create_candidates(family: str, zone_id: str, settings: CloudSettings, manif
                 "name": name,
                 "status": "trained_candidate",
                 "promoted": False,
-                "model_uri": f"{output_base}/{candidate_id}/model.pt",
+                "model_uri": model_uri,
+                "artifact_type": artifact_type,
                 "manifest_uri": manifest_uri,
                 "mask_uri": mask_uri,
                 "metrics": {
@@ -142,6 +156,64 @@ def _create_candidates(family: str, zone_id: str, settings: CloudSettings, manif
             }
         )
     return candidates
+
+
+def _write_annotation_template_model(store: MetadataStore, family: str, zone_id: str, output_base: str, candidate_id: str) -> str:
+    model_uri = f"{output_base}/{candidate_id}/model.pt"
+    if not output_base.startswith("file://"):
+        return model_uri
+    model_path = Path(output_base.removeprefix("file://")) / candidate_id / "model.json"
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    model_path.write_text(
+        json.dumps(
+            {
+                "type": "annotation_template_detector",
+                "family": family,
+                "zone_id": zone_id,
+                "candidate_id": candidate_id,
+                "created_at": utc_now(),
+                "source": "annotations",
+                "boxes": _latest_annotation_boxes(store, family, zone_id),
+            },
+            indent=2,
+        )
+        + "\n"
+    )
+    return f"file://{model_path.as_posix()}"
+
+
+def _latest_annotation_boxes(store: MetadataStore, family: str, zone_id: str) -> list[dict[str, Any]]:
+    records = [
+        _flat(record)
+        for record in store.list("annotations")
+        if _flat(record).get("family") == family and _flat(record).get("zone_id") == zone_id and _flat(record).get("annotations")
+    ]
+    if not records:
+        return []
+    source = records[-1]
+    boxes: list[dict[str, Any]] = []
+    for item in source.get("annotations") or []:
+        if item.get("status", "present") not in {"present", "uncertain"}:
+            continue
+        bbox = item.get("bbox")
+        if not isinstance(bbox, list) or len(bbox) != 4:
+            continue
+        class_name = str(item.get("class_name") or "piece")
+        boxes.append(
+            {
+                "element_id": str(item.get("element_id") or item.get("id") or class_name),
+                "class_name": class_name,
+                "bbox": [max(0.0, min(1.0, float(value))) for value in bbox],
+                "status": str(item.get("status") or "present"),
+                "source_annotation_id": str(source.get("id") or ""),
+            }
+        )
+    return boxes
+
+
+def _flat(record: dict[str, Any]) -> dict[str, Any]:
+    data = record.get("data")
+    return data if isinstance(data, dict) else record
 
 
 def _model_output_uri(settings: CloudSettings, family: str, zone_id: str) -> str:

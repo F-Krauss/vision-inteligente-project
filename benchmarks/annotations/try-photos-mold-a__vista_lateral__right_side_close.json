@@ -1,0 +1,184 @@
+{
+  "slug": "try-photos-mold-a__vista_lateral__right_side_close",
+  "dataset": "try-photos-mold-a",
+  "vista": "vista_lateral",
+  "section": "right_side_close",
+  "golden_images": [
+    "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/present/IMG_2453.jpg",
+    "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/present/IMG_2455.jpg"
+  ],
+  "eval_images": [
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/present/IMG_2457.jpg",
+      "missing_piece_ids": []
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/present/IMG_2459.jpg",
+      "missing_piece_ids": []
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/present/IMG_2461.jpg",
+      "missing_piece_ids": []
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/missing/IMG_2454.jpg",
+      "missing_piece_ids": [
+        "piece_01"
+      ]
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/missing/IMG_2456.jpg",
+      "missing_piece_ids": [
+        "piece_01"
+      ]
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/missing/IMG_2458.jpg",
+      "missing_piece_ids": []
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/missing/IMG_2460.jpg",
+      "missing_piece_ids": []
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/missing/IMG_2462.jpg",
+      "missing_piece_ids": []
+    }
+  ],
+  "zone_polygon_norm": [
+    [
+      0.28,
+      0.105
+    ],
+    [
+      0.88,
+      0.105
+    ],
+    [
+      0.93,
+      0.14
+    ],
+    [
+      1.0,
+      0.16
+    ],
+    [
+      1.0,
+      1.0
+    ],
+    [
+      0.0,
+      1.0
+    ],
+    [
+      0.0,
+      0.62
+    ],
+    [
+      0.05,
+      0.48
+    ],
+    [
+      0.1,
+      0.32
+    ]
+  ],
+  "pieces": [
+    {
+      "id": "piece_01",
+      "bbox_norm": [
+        0.6200356343587239,
+        0.7478984289169311,
+        0.7795245876312256,
+        0.8143098676204681
+      ],
+      "control": false,
+      "pairs_seen": [
+        0,
+        1
+      ]
+    },
+    {
+      "id": "control_01",
+      "bbox_norm": [
+        0.16730362528206458,
+        0.5187438839207221,
+        0.3267925785545662,
+        0.585155322624259
+      ],
+      "control": true
+    },
+    {
+      "id": "control_02",
+      "bbox_norm": [
+        0.489378147354652,
+        0.16007182520274152,
+        0.6488671006271537,
+        0.22648326390627846
+      ],
+      "control": true
+    },
+    {
+      "id": "control_03",
+      "bbox_norm": [
+        0.18048540843179078,
+        0.8456669259907394,
+        0.33997436170429246,
+        0.9120783646942763
+      ],
+      "control": true
+    },
+    {
+      "id": "control_04",
+      "bbox_norm": [
+        0.12770244483108897,
+        0.2371164546924454,
+        0.2871913981035906,
+        0.30352789339598235
+      ],
+      "control": true
+    },
+    {
+      "id": "control_05",
+      "bbox_norm": [
+        0.7255771051799546,
+        0.6121911666970665,
+        0.8850660584524562,
+        0.6786026054006034
+      ],
+      "control": true
+    }
+  ],
+  "pairs": [
+    {
+      "missing": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/missing/IMG_2454.jpg",
+      "present": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/present/IMG_2453.jpg",
+      "ok": true,
+      "blobs": 8
+    },
+    {
+      "missing": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/missing/IMG_2456.jpg",
+      "present": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/present/IMG_2455.jpg",
+      "ok": true,
+      "blobs": 8
+    },
+    {
+      "missing": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/missing/IMG_2458.jpg",
+      "present": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/present/IMG_2457.jpg",
+      "ok": true,
+      "blobs": 8
+    },
+    {
+      "missing": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/missing/IMG_2460.jpg",
+      "present": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/present/IMG_2459.jpg",
+      "ok": true,
+      "blobs": 5
+    },
+    {
+      "missing": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/missing/IMG_2462.jpg",
+      "present": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-mold-a/classified/vista_lateral/right_side_close/present/IMG_2461.jpg",
+      "ok": true,
+      "blobs": 8
+    }
+  ]
+}

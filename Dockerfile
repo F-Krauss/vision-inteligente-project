@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml README.md ./
 COPY mold_inspection ./mold_inspection
+COPY config ./config
 RUN pip install --no-cache-dir -e ".[cloud,vision]"
 COPY --from=web /app/web/dist ./web/dist
 CMD ["uvicorn", "mold_inspection.cloud.app:app", "--host", "0.0.0.0", "--port", "8080"]

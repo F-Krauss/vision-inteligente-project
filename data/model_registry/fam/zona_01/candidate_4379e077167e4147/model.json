@@ -1,0 +1,22 @@
+{
+  "type": "annotation_template_detector",
+  "family": "fam",
+  "zone_id": "zona_01",
+  "candidate_id": "candidate_4379e077167e4147",
+  "created_at": "2026-06-06T21:04:14.362700+00:00",
+  "source": "annotations",
+  "boxes": [
+    {
+      "element_id": "bloque_ref_01",
+      "class_name": "block",
+      "bbox": [
+        0.2,
+        0.25,
+        0.45,
+        0.55
+      ],
+      "status": "present",
+      "source_annotation_id": "ann_fam_zona_01_img_001"
+    }
+  ]
+}

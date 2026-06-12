@@ -10,9 +10,14 @@ from .schemas import ResourceRecord, utc_now
 
 
 COLLECTIONS = {
+    "annotations",
+    "annotation_datasets",
     "families",
     "molds",
+    "mold_section_plans",
+    "mold_validation_sessions",
     "zones",
+    "references",
     "datasets",
     "segmenter_datasets",
     "segmenter_training_jobs",
@@ -25,6 +30,7 @@ COLLECTIONS = {
     "training_jobs",
     "uploads",
 }
+FIRESTORE_NESTED_ARRAY_KEY = "nested_array_items"
 
 
 class MetadataStore:
@@ -91,14 +97,14 @@ class FirestoreStore(MetadataStore):
 
     def list(self, collection: str) -> list[dict[str, Any]]:
         _validate_collection(collection)
-        return [doc.to_dict() | {"id": doc.id} for doc in self.client.collection(collection).stream()]
+        return [_decode_firestore_nested_arrays(doc.to_dict()) | {"id": doc.id} for doc in self.client.collection(collection).stream()]
 
     def get(self, collection: str, record_id: str) -> dict[str, Any] | None:
         _validate_collection(collection)
         doc = self.client.collection(collection).document(record_id).get()
         if not doc.exists:
             return None
-        return doc.to_dict() | {"id": doc.id}
+        return _decode_firestore_nested_arrays(doc.to_dict()) | {"id": doc.id}
 
     def put(self, collection: str, record_id: str, data: dict[str, Any]) -> dict[str, Any]:
         _validate_collection(collection)
@@ -111,7 +117,7 @@ class FirestoreStore(MetadataStore):
             "created_at": existing.get("created_at", data.get("created_at", now)),
             "updated_at": now,
         }
-        self.client.collection(collection).document(record_id).set(payload)
+        self.client.collection(collection).document(record_id).set(_encode_firestore_nested_arrays(payload))
         return payload
 
 
@@ -132,3 +138,27 @@ def upsert_resource(store: MetadataStore, collection: str, data: dict[str, Any])
 def _validate_collection(collection: str) -> None:
     if collection not in COLLECTIONS:
         raise ValueError(f"Unknown collection: {collection}")
+
+
+def _encode_firestore_nested_arrays(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _encode_firestore_nested_arrays(item) for key, item in value.items()}
+    if isinstance(value, list):
+        encoded = []
+        for item in value:
+            if isinstance(item, list):
+                encoded.append({FIRESTORE_NESTED_ARRAY_KEY: _encode_firestore_nested_arrays(item)})
+            else:
+                encoded.append(_encode_firestore_nested_arrays(item))
+        return encoded
+    return value
+
+
+def _decode_firestore_nested_arrays(value: Any) -> Any:
+    if isinstance(value, dict):
+        if set(value.keys()) == {FIRESTORE_NESTED_ARRAY_KEY} and isinstance(value[FIRESTORE_NESTED_ARRAY_KEY], list):
+            return _decode_firestore_nested_arrays(value[FIRESTORE_NESTED_ARRAY_KEY])
+        return {key: _decode_firestore_nested_arrays(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_decode_firestore_nested_arrays(item) for item in value]
+    return value

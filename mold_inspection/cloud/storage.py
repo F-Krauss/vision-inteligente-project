@@ -7,6 +7,7 @@ from uuid import uuid4
 import json
 import re
 import shutil
+import subprocess
 
 from .config import CloudSettings
 from .schemas import UploadPresignResponse
@@ -97,10 +98,10 @@ class LocalObjectStorage(ObjectStorage):
             path = Path(record["path"])
             if not path.exists():
                 raise ValueError(f"Upload has not been written yet: {object_uri}")
-            return path
+            return _ensure_cv_readable(path)
         path = Path(object_uri.removeprefix("file://"))
         if path.exists():
-            return path
+            return _ensure_cv_readable(path)
         raise ValueError(f"Unsupported or missing object URI: {object_uri}")
 
 
@@ -186,7 +187,7 @@ class GcsObjectStorage(ObjectStorage):
         destination = self.cache_dir / blob_name
         destination.parent.mkdir(parents=True, exist_ok=True)
         self.bucket.blob(blob_name).download_to_filename(destination)
-        return destination
+        return _ensure_cv_readable(destination)
 
 
 def create_object_storage(settings: CloudSettings, store: MetadataStore) -> ObjectStorage:
@@ -207,6 +208,45 @@ def copy_to_uri(source: Path, destination_uri: str) -> None:
 def _safe_filename(filename: str) -> str:
     name = Path(filename).name or "image.jpg"
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", name)
+
+
+def _ensure_cv_readable(path: Path) -> Path:
+    if path.suffix.lower() not in {".heic", ".heif"}:
+        return path
+    destination = path.with_suffix(f"{path.suffix}.jpg")
+    if destination.exists() and destination.stat().st_mtime >= path.stat().st_mtime:
+        return destination
+    try:
+        from PIL import Image
+        import pillow_heif
+    except ImportError:
+        return _convert_heic_with_sips(path) or path
+    pillow_heif.register_heif_opener()
+    try:
+        with Image.open(path) as image:
+            image = image.convert("RGB")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            image.save(destination, format="JPEG", quality=95)
+        return destination
+    except Exception:
+        return _convert_heic_with_sips(path) or path
+
+
+def _convert_heic_with_sips(path: Path) -> Path | None:
+    if not shutil.which("sips"):
+        return None
+    destination = path.with_suffix(f"{path.suffix}.jpg")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.run(
+            ["sips", "-s", "format", "jpeg", str(path), "--out", str(destination)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return destination if destination.exists() else None
 
 
 def _expires_at() -> str:

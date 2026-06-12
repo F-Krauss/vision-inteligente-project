@@ -1,0 +1,276 @@
+{
+  "slug": "try-photos-last-mold-with-without_pieces__vista_frontal__front_full_right_lower",
+  "dataset": "try-photos-last-mold-with-without pieces",
+  "vista": "vista_frontal",
+  "section": "front_full_right_lower",
+  "golden_images": [
+    "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2607.jpg",
+    "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2609.jpg"
+  ],
+  "eval_images": [
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2611.jpg",
+      "missing_piece_ids": []
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2613.jpg",
+      "missing_piece_ids": []
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2615.jpg",
+      "missing_piece_ids": []
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2618.jpg",
+      "missing_piece_ids": []
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2620.jpg",
+      "missing_piece_ids": []
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2622.jpg",
+      "missing_piece_ids": []
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/missing/IMG_2608.jpg",
+      "missing_piece_ids": []
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/missing/IMG_2610.jpg",
+      "missing_piece_ids": [
+        "piece_01",
+        "piece_02"
+      ]
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/missing/IMG_2612.jpg",
+      "missing_piece_ids": [
+        "piece_03",
+        "piece_04"
+      ]
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/missing/IMG_2614.jpg",
+      "missing_piece_ids": [
+        "piece_01",
+        "piece_02"
+      ]
+    },
+    {
+      "path": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/missing/IMG_2619.jpg",
+      "missing_piece_ids": [
+        "piece_03",
+        "piece_04"
+      ]
+    }
+  ],
+  "zone_polygon_norm": [
+    [
+      0.0,
+      0.345
+    ],
+    [
+      0.355,
+      0.3
+    ],
+    [
+      0.365,
+      0.225
+    ],
+    [
+      0.585,
+      0.225
+    ],
+    [
+      0.595,
+      0.29
+    ],
+    [
+      0.7,
+      0.27
+    ],
+    [
+      0.715,
+      0.3
+    ],
+    [
+      0.87,
+      0.295
+    ],
+    [
+      0.885,
+      0.48
+    ],
+    [
+      0.945,
+      0.54
+    ],
+    [
+      0.95,
+      0.73
+    ],
+    [
+      1.0,
+      0.78
+    ],
+    [
+      1.0,
+      1.0
+    ],
+    [
+      0.0,
+      1.0
+    ]
+  ],
+  "pieces": [
+    {
+      "id": "piece_01",
+      "bbox_norm": [
+        0.8678672611713409,
+        0.6517356038093567,
+        0.9330019950866699,
+        0.6691040396690369
+      ],
+      "control": false,
+      "pairs_seen": [
+        1,
+        3
+      ]
+    },
+    {
+      "id": "piece_02",
+      "bbox_norm": [
+        0.8703120648860931,
+        0.5912574231624603,
+        0.907954066991806,
+        0.6035550534725189
+      ],
+      "control": false,
+      "pairs_seen": [
+        1,
+        3
+      ]
+    },
+    {
+      "id": "piece_03",
+      "bbox_norm": [
+        0.10608500242233276,
+        0.35619014501571655,
+        0.18262769281864166,
+        0.37320253252983093
+      ],
+      "control": false,
+      "pairs_seen": [
+        2,
+        4
+      ]
+    },
+    {
+      "id": "piece_04",
+      "bbox_norm": [
+        0.321939080953598,
+        0.4956284910440445,
+        0.3490614891052246,
+        0.5145505666732788
+      ],
+      "control": false,
+      "pairs_seen": [
+        2,
+        4
+      ]
+    },
+    {
+      "id": "control_01",
+      "bbox_norm": [
+        0.14105036098427823,
+        0.6033699652315384,
+        0.19243872899479916,
+        0.6205603769184357
+      ],
+      "control": true
+    },
+    {
+      "id": "control_02",
+      "bbox_norm": [
+        0.1584169084374729,
+        0.9210460894037255,
+        0.20980527644799382,
+        0.9382365010906227
+      ],
+      "control": true
+    },
+    {
+      "id": "control_03",
+      "bbox_norm": [
+        0.8765565341918238,
+        0.6941741202976521,
+        0.9279449022023447,
+        0.7113645319845494
+      ],
+      "control": true
+    },
+    {
+      "id": "control_04",
+      "bbox_norm": [
+        0.3567633988638951,
+        0.6123404627262383,
+        0.408151766874416,
+        0.6295308744131356
+      ],
+      "control": true
+    },
+    {
+      "id": "control_05",
+      "bbox_norm": [
+        0.6204123013678327,
+        0.43749419429039194,
+        0.6718006693783536,
+        0.4546846059772892
+      ],
+      "control": true
+    }
+  ],
+  "pairs": [
+    {
+      "missing": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/missing/IMG_2608.jpg",
+      "present": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2607.jpg",
+      "ok": true,
+      "blobs": 8
+    },
+    {
+      "missing": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/missing/IMG_2610.jpg",
+      "present": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2609.jpg",
+      "ok": true,
+      "blobs": 7
+    },
+    {
+      "missing": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/missing/IMG_2612.jpg",
+      "present": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2611.jpg",
+      "ok": true,
+      "blobs": 8
+    },
+    {
+      "missing": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/missing/IMG_2614.jpg",
+      "present": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2613.jpg",
+      "ok": true,
+      "blobs": 7
+    },
+    {
+      "missing": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/missing/IMG_2619.jpg",
+      "present": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2618.jpg",
+      "ok": true,
+      "blobs": 8
+    },
+    {
+      "missing": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/missing/IMG_2621.jpg",
+      "present": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2620.jpg",
+      "ok": false
+    },
+    {
+      "missing": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/missing/IMG_2623.jpg",
+      "present": "/Users/fukunugget/dev/vision-inteligente-project/try-photos-last-mold-with-without pieces/classified/vista_frontal/front_full_right_lower/present/IMG_2622.jpg",
+      "ok": false
+    }
+  ]
+}

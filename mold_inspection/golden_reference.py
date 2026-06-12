@@ -12,10 +12,13 @@ import tempfile
 try:
     import cv2
     import numpy as np
-    from skimage.metrics import structural_similarity
 except ImportError:  # pragma: no cover - exercised through CLI runtime checks.
     cv2 = None
     np = None
+
+try:
+    from skimage.metrics import structural_similarity
+except ImportError:  # pragma: no cover - structural similarity is optional for non-SSIM flows.
     structural_similarity = None
 
 
@@ -324,7 +327,12 @@ def _align_candidate(
 def _similarity(reference, aligned, valid_mask=None) -> tuple[float, Any]:
     ref_gray = cv2.cvtColor(reference, cv2.COLOR_BGR2GRAY)
     aligned_gray = cv2.cvtColor(aligned, cv2.COLOR_BGR2GRAY)
-    score, diff = structural_similarity(ref_gray, aligned_gray, full=True)
+    if structural_similarity is not None:
+        score, diff = structural_similarity(ref_gray, aligned_gray, full=True)
+    else:
+        raw_diff = cv2.absdiff(ref_gray, aligned_gray).astype("float32") / 255.0
+        diff = 1.0 - raw_diff
+        score = float(np.mean(diff))
     diff_map = ((1.0 - diff) * 255).astype("uint8")
     if valid_mask is None:
         return float(score), diff_map
@@ -451,5 +459,5 @@ def _safe_reference_id(reference_id: str) -> str:
 
 
 def _require_vision_deps() -> None:
-    if cv2 is None or np is None or structural_similarity is None:
+    if cv2 is None or np is None:
         raise RuntimeError('Install vision dependencies: python3 -m pip install -e ".[vision]"')

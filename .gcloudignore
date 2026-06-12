@@ -1,0 +1,22 @@
+.git
+.DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.playwright-cli/
+.venv/
+venv/
+web/node_modules/
+web/dist/
+data/cloud_state/
+data/model_registry/
+data/raw/
+data/yolo/
+reports/
+runs/
+models/*.pt
+Try-photos uncataloged/
+try-photos-last-mold-with-without pieces/
+try-photos-last-mold-with-without pieces.zip
+try-photos-mold-a/
