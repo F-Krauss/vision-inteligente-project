@@ -482,16 +482,21 @@ def _align_candidate_to_reference(reference: Any, candidate: Any) -> tuple[Any, 
     }
     ref_gray = cv2.cvtColor(reference, cv2.COLOR_BGR2GRAY)
     cand_gray = cv2.cvtColor(candidate, cv2.COLOR_BGR2GRAY)
-    orb = cv2.ORB_create(nfeatures=5000)
+    orb = cv2.ORB_create(nfeatures=8000)
     ref_keypoints, ref_desc = orb.detectAndCompute(ref_gray, None)
     cand_keypoints, cand_desc = orb.detectAndCompute(cand_gray, None)
     if ref_desc is None or cand_desc is None:
         alignment["reason"] = "insufficient_features"
         return candidate, alignment
 
-    matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    matches = sorted(matcher.match(ref_desc, cand_desc), key=lambda item: item.distance)
-    good_matches = matches[: min(320, len(matches))]
+    # Lowe ratio test on KNN matches keeps only well-separated correspondences,
+    # giving RANSAC far cleaner inliers than crossCheck top-N. Fall back to
+    # crossCheck if the ratio test is too aggressive on this pair.
+    good_matches = _ratio_matched(ref_desc, cand_desc)
+    if len(good_matches) < 10:
+        matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        matches = sorted(matcher.match(ref_desc, cand_desc), key=lambda item: item.distance)
+        good_matches = matches[: min(320, len(matches))]
     alignment["matched_keypoints"] = len(good_matches)
     if len(good_matches) < 10:
         alignment["reason"] = "insufficient_matches"
@@ -499,7 +504,7 @@ def _align_candidate_to_reference(reference: Any, candidate: Any) -> tuple[Any, 
 
     ref_points = np.float32([ref_keypoints[item.queryIdx].pt for item in good_matches]).reshape(-1, 1, 2)
     cand_points = np.float32([cand_keypoints[item.trainIdx].pt for item in good_matches]).reshape(-1, 1, 2)
-    homography, inlier_mask = cv2.findHomography(cand_points, ref_points, cv2.RANSAC, 5.0)
+    homography, inlier_mask = cv2.findHomography(cand_points, ref_points, cv2.RANSAC, 3.0)
     if homography is None or inlier_mask is None:
         alignment["reason"] = "homography_failed"
         return candidate, alignment
@@ -509,6 +514,15 @@ def _align_candidate_to_reference(reference: Any, candidate: Any) -> tuple[Any, 
     if inlier_ratio < 0.08:
         alignment["reason"] = "low_inlier_ratio"
         return candidate, alignment
+
+    # Sub-pixel polish: ECC homography refinement on top of the ORB estimate. This
+    # is what makes ~15px parts land — feature-matched homographies on a 3D mold
+    # routinely leave 5-20px residual; ECC drives the photometric alignment to
+    # sub-pixel where texture supports it, falling back to ORB if it diverges.
+    homography, ecc_info = _refine_homography_ecc(ref_gray, cand_gray, homography)
+    alignment["ecc"] = ecc_info
+    if ecc_info.get("applied"):
+        alignment["method"] = "orb+ecc"
 
     aligned = cv2.warpPerspective(candidate, homography, (width, height))
     source_mask = np.full(candidate.shape[:2], 255, dtype=np.uint8)
@@ -522,6 +536,73 @@ def _align_candidate_to_reference(reference: Any, candidate: Any) -> tuple[Any, 
     # path inverts it to project reference annotations onto the candidate.
     alignment["_homography"] = homography
     return aligned, alignment
+
+
+def _ratio_matched(ref_desc: Any, cand_desc: Any, ratio: float = 0.75) -> list[Any]:
+    """ORB descriptor matches surviving Lowe's ratio test (best vs 2nd-best)."""
+    matcher = cv2.BFMatcher(cv2.NORM_HAMMING)
+    good: list[Any] = []
+    for pair in matcher.knnMatch(ref_desc, cand_desc, k=2):
+        if len(pair) < 2:
+            continue
+        best, second = pair
+        if best.distance < ratio * second.distance:
+            good.append(best)
+    return good
+
+
+def _refine_homography_ecc(
+    ref_gray: Any,
+    cand_gray: Any,
+    homography: Any,
+    max_side: int = 1280,
+) -> tuple[Any, dict[str, Any]]:
+    """Polish a candidate→reference homography to sub-pixel accuracy with ECC.
+
+    ECC maximizes the Enhanced Correlation Coefficient (invariant to brightness/
+    contrast), so it refines alignment under lighting changes where intensity diff
+    would not. Runs on a downscaled grayscale pair for speed, then rescales the
+    refined warp back to full reference resolution. Returns the original homography
+    unchanged if ECC fails to converge or visibly diverges."""
+    info: dict[str, Any] = {"applied": False}
+    try:
+        h, w = ref_gray.shape[:2]
+        scale = min(1.0, max_side / float(max(h, w)))
+        if scale < 1.0:
+            size = (int(round(w * scale)), int(round(h * scale)))
+            ref_s = cv2.resize(ref_gray, size, interpolation=cv2.INTER_AREA)
+            cand_s = cv2.resize(cand_gray, size, interpolation=cv2.INTER_AREA)
+        else:
+            ref_s, cand_s = ref_gray, cand_gray
+        scale_mat = np.array([[scale, 0, 0], [0, scale, 0], [0, 0, 1]], dtype=np.float64)
+        scale_inv = np.array([[1.0 / scale, 0, 0], [0, 1.0 / scale, 0], [0, 0, 1]], dtype=np.float64)
+        # ECC's warp maps template(reference)→input(candidate), i.e. inv(homography).
+        warp_full = np.linalg.inv(homography.astype(np.float64))
+        warp_small = (scale_mat @ warp_full @ scale_inv).astype(np.float32)
+        criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 100, 1e-6)
+        ref_b = cv2.GaussianBlur(ref_s, (5, 5), 0)
+        cand_b = cv2.GaussianBlur(cand_s, (5, 5), 0)
+        cc, warp_small = cv2.findTransformECC(ref_b, cand_b, warp_small, cv2.MOTION_HOMOGRAPHY, criteria, None, 5)
+        warp_full_refined = scale_inv @ warp_small.astype(np.float64) @ scale_mat
+        refined = np.linalg.inv(warp_full_refined)
+        refined = refined / refined[2, 2]
+        if not np.all(np.isfinite(refined)) or not _homography_close(homography, refined, w, h):
+            info["reason"] = "ecc_diverged"
+            return homography, info
+        info.update({"applied": True, "cc": round(float(cc), 4)})
+        return refined, info
+    except cv2.error:
+        info["reason"] = "ecc_failed"
+        return homography, info
+
+
+def _homography_close(h1: Any, h2: Any, w: int, h: int, max_frac: float = 0.06) -> bool:
+    """True when two homographies map the image corners to within max_frac of the
+    image's larger side — a guard so a diverged ECC warp is rejected."""
+    corners = np.float32([[[0, 0]], [[w, 0]], [[w, h]], [[0, h]]])
+    p1 = cv2.perspectiveTransform(corners, h1.astype(np.float64)).reshape(-1, 2)
+    p2 = cv2.perspectiveTransform(corners, h2.astype(np.float64)).reshape(-1, 2)
+    return float(np.linalg.norm(p1 - p2, axis=1).max()) <= max_frac * max(w, h)
 
 
 def _erode_valid_mask(valid_mask: Any) -> Any:

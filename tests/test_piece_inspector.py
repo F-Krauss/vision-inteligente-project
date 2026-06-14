@@ -110,6 +110,77 @@ def test_assignment_consumes_each_detection_once():
     assert len(assigned) == 1 and len(consumed) == 1
 
 
+def _textured_image(w=960, h=720):
+    np = piece_inspector.np
+    cv2 = piece_inspector.cv2
+    rng = np.random.default_rng(7)
+    img = np.full((h, w, 3), 40, dtype=np.uint8)
+    for _ in range(600):
+        x, y = int(rng.integers(0, w)), int(rng.integers(0, h))
+        r = int(rng.integers(3, 14))
+        c = tuple(int(v) for v in rng.integers(60, 240, size=3))
+        cv2.circle(img, (x, y), r, c, -1)
+    for _ in range(120):
+        p1 = (int(rng.integers(0, w)), int(rng.integers(0, h)))
+        p2 = (int(rng.integers(0, w)), int(rng.integers(0, h)))
+        cv2.line(img, p1, p2, (200, 200, 200), 1)
+    return img
+
+
+def _control_point_error(h_est, h_true, w, h, n=12):
+    np = piece_inspector.np
+    cv2 = piece_inspector.cv2
+    xs = np.linspace(w * 0.2, w * 0.8, n)
+    ys = np.linspace(h * 0.2, h * 0.8, n)
+    grid = np.float32([[[x, y]] for x in xs for y in ys])
+    a = cv2.perspectiveTransform(grid, h_est.astype(np.float64)).reshape(-1, 2)
+    b = cv2.perspectiveTransform(grid, h_true.astype(np.float64)).reshape(-1, 2)
+    return float(piece_inspector.np.linalg.norm(a - b, axis=1).max())
+
+
+def test_ecc_refinement_reaches_subpixel_alignment():
+    np = piece_inspector.np
+    cv2 = piece_inspector.cv2
+    ref = _textured_image()
+    h, w = ref.shape[:2]
+    # candidate→reference ground-truth homography (mild projective + translation).
+    h_true = np.array([[1.0, 0.02, 9.0], [0.012, 1.0, -7.0], [1.2e-5, 6e-6, 1.0]])
+    candidate = cv2.warpPerspective(ref, np.linalg.inv(h_true), (w, h))
+    # lighting (gain+bias) + sensor noise that degrades pure feature localization.
+    candidate = np.clip(candidate.astype(np.float32) * 0.82 + 22, 0, 255).astype(np.uint8)
+    candidate = np.clip(candidate.astype(np.int16) + np.random.default_rng(3).integers(-6, 7, candidate.shape), 0, 255).astype(np.uint8)
+
+    _, alignment = piece_inspector._align_candidate_to_reference(ref, candidate)
+    assert alignment["ok"]
+    assert alignment["method"] == "orb+ecc"
+    assert _control_point_error(alignment["_homography"], h_true, w, h) < 1.5
+
+
+def test_ecc_refinement_improves_a_perturbed_homography():
+    np = piece_inspector.np
+    cv2 = piece_inspector.cv2
+    ref = _textured_image()
+    h, w = ref.shape[:2]
+    h_true = np.array([[1.0, 0.015, 6.0], [0.01, 1.0, -5.0], [1e-5, 5e-6, 1.0]])
+    candidate = cv2.warpPerspective(ref, np.linalg.inv(h_true), (w, h))
+    candidate = np.clip(candidate.astype(np.float32) * 0.85 + 18, 0, 255).astype(np.uint8)
+
+    # Simulate an ORB homography that is a few px off the truth.
+    h_init = h_true.copy()
+    h_init[0, 2] += 4.5
+    h_init[1, 2] -= 3.5
+    err_before = _control_point_error(h_init, h_true, w, h)
+
+    ref_gray = cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY)
+    cand_gray = cv2.cvtColor(candidate, cv2.COLOR_BGR2GRAY)
+    refined, info = piece_inspector._refine_homography_ecc(ref_gray, cand_gray, h_init)
+    err_after = _control_point_error(refined, h_true, w, h)
+
+    assert info["applied"]
+    assert err_after < err_before
+    assert err_after < 1.5
+
+
 def _synthetic_fixture():
     cv2 = piece_inspector.cv2
     np = piece_inspector.np
