@@ -4,7 +4,7 @@
 // category, selection, and the undo/redo history of elements).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Focus, Hand, MousePointer2, PanelRightOpen, Pentagon, Redo2, Save, ScanLine, SquareDashedMousePointer, Undo2 } from "lucide-react";
+import { Circle, Focus, Hand, MousePointer2, PanelRightOpen, Pentagon, Redo2, Save, ScanLine, SquareDashedMousePointer, Undo2 } from "lucide-react";
 import type { Point } from "../utils/geometry";
 import AnnotateCanvas from "./AnnotateCanvas";
 import CategoryPanel from "./CategoryPanel";
@@ -112,12 +112,24 @@ export default function AnnotatorScreen({
 
   const canSave = hasEvaluationZone && (dirty || zoneDirty);
 
+  function handleKeyDown(e: React.KeyboardEvent) {
+    const tag = (document.activeElement as HTMLElement)?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    if ((e.key === "Delete" || e.key === "Backspace") && selected) {
+      e.preventDefault();
+      deleteSelected();
+    }
+    if (e.key === "z" && (e.metaKey || e.ctrlKey) && !e.shiftKey) { e.preventDefault(); undo(); }
+    if ((e.key === "z" && (e.metaKey || e.ctrlKey) && e.shiftKey) || (e.key === "y" && e.ctrlKey)) { e.preventDefault(); redo(); }
+  }
+
   return (
-    <div className="annEditor">
+    <div className="annEditor" tabIndex={-1} onKeyDown={handleKeyDown} style={{ outline: "none" }}>
       <div className="annToolbar">
         <div className="annToolGroup">
           <button className={tool === "zone" ? "on zoneOn" : hasEvaluationZone ? "zoneReady" : "zoneMissing"} onClick={() => setTool("zone")} type="button" title="Zona de evaluación obligatoria"><Focus size={14} /> Zona</button>
           <button className={tool === "polygon" ? "on" : ""} onClick={() => setTool("polygon")} disabled={!hasEvaluationZone} type="button" title="Polígono (clic para vértices)"><Pentagon size={14} /> Polígono</button>
+          <button className={tool === "circle" ? "on" : ""} onClick={() => setTool("circle")} disabled={!hasEvaluationZone} type="button" title="Círculo (clic centro, clic radio)"><Circle size={14} /> Círculo</button>
           <button className={tool === "rect" ? "on" : ""} onClick={() => setTool("rect")} disabled={!hasEvaluationZone} type="button" title="Rectángulo (arrastrar)"><SquareDashedMousePointer size={14} /> Rectángulo</button>
           <button className={tool === "select" ? "on" : ""} onClick={() => setTool("select")} type="button" title="Editar / mover"><MousePointer2 size={14} /> Editar</button>
           <button className={tool === "pan" ? "on" : ""} onClick={() => setTool("pan")} type="button" title="Mover lienzo"><Hand size={14} /> Mover</button>

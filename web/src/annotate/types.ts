@@ -42,7 +42,7 @@ export type AnnElement = {
   notes?: string;
 };
 
-export type Tool = "zone" | "polygon" | "rect" | "select" | "pan";
+export type Tool = "zone" | "polygon" | "circle" | "rect" | "select" | "pan";
 
 export function newId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;

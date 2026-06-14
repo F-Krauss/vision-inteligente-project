@@ -20,6 +20,16 @@ import {
   rectPolygon,
 } from "./types";
 
+// Custom cursors
+const CURSOR_CLOSE_POLY = (() => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="6" fill="none" stroke="#22c55e" stroke-width="2"/><line x1="12" y1="2" x2="12" y2="8" stroke="#22c55e" stroke-width="2"/><line x1="12" y1="16" x2="12" y2="22" stroke="#22c55e" stroke-width="2"/><line x1="2" y1="12" x2="8" y2="12" stroke="#22c55e" stroke-width="2"/><line x1="16" y1="12" x2="22" y2="12" stroke="#22c55e" stroke-width="2"/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, crosshair`;
+})();
+const CURSOR_WHITE_CROSS = (() => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><line x1="12" y1="2" x2="12" y2="10" stroke="white" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="14" x2="12" y2="22" stroke="white" stroke-width="2" stroke-linecap="round"/><line x1="2" y1="12" x2="10" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/><line x1="14" y1="12" x2="22" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, crosshair`;
+})();
+
 type Props = {
   imageUrl: string;
   elements: AnnElement[];
@@ -73,8 +83,12 @@ export default function AnnotateCanvas({
   const [aspect, setAspect] = useState(1.5);
   const [draftPoly, setDraftPoly] = useState<Point[]>([]);
   const [draftRect, setDraftRect] = useState<[number, number, number, number] | null>(null);
+  const [draftCircleCenter, setDraftCircleCenter] = useState<Point | null>(null);
   const [loupe, setLoupe] = useState<{ n: Point; corner: "tl" | "tr" } | null>(null);
   const [dragMode, setDragMode] = useState<NonNullable<DragState>["mode"] | null>(null);
+  const [nearOrigin, setNearOrigin] = useState(false);
+  const [hoverN, setHoverN] = useState<Point | null>(null);
+  const [editHoverType, setEditHoverType] = useState<"vertex" | "edge" | "fill" | null>(null);
 
   const baseW = Math.max(1, Math.min(stageSize.w * 0.92, stageSize.h * 0.92 * aspect));
   const baseH = Math.max(1, baseW / aspect);
@@ -126,6 +140,7 @@ export default function AnnotateCanvas({
   useEffect(() => {
     if (tool !== "polygon" && tool !== "zone" && draftPoly.length) setDraftPoly([]);
     if (tool !== "rect" && draftRect) setDraftRect(null);
+    if (tool !== "circle" && draftCircleCenter) { setDraftCircleCenter(null); setLoupe(null); }
   }, [tool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const screenOf = (n: Point): [number, number] => [
@@ -222,11 +237,33 @@ export default function AnnotateCanvas({
         const [fx, fy] = screenOf(draftPoly[0]);
         if (Math.hypot(sx - fx, sy - fy) < VERTEX_TOL + 3) { finishPolygon(); return; }
       }
+      // Restrict polygon vertices to inside the evaluation zone.
+      if (tool === "polygon" && evaluationZone?.length && !pointInPolygon(n.x, n.y, evaluationZone)) return;
       setDraftPoly((cur) => [...cur, n]);
       setLoupe({ n, corner });
       return;
     }
+    if (tool === "circle") {
+      if (evaluationZone?.length && !pointInPolygon(n.x, n.y, evaluationZone)) return;
+      if (!draftCircleCenter) {
+        setDraftCircleCenter(n);
+        setHoverN(n);
+        setLoupe({ n, corner });
+      } else {
+        const [cx, cy] = screenOf(draftCircleCenter);
+        const rScreen = Math.hypot(sx - cx, sy - cy);
+        if (rScreen > 4) {
+          const rx = rScreen / (baseW * view.scale);
+          const ry = rScreen / (baseH * view.scale);
+          commitElement(circlePolygon(draftCircleCenter.x, draftCircleCenter.y, rx, ry), "polygon");
+        }
+        setDraftCircleCenter(null);
+        setLoupe(null);
+      }
+      return;
+    }
     if (tool === "rect") {
+      if (evaluationZone?.length && !pointInPolygon(n.x, n.y, evaluationZone)) return;
       setDrag({ mode: "rect", startN: n });
       setDraftRect([n.x, n.y, n.x, n.y]);
       setLoupe({ n, corner });
@@ -273,7 +310,42 @@ export default function AnnotateCanvas({
     const n = normOf(sx, sy);
     const corner: "tl" | "tr" = sx > stageSize.w / 2 ? "tl" : "tr";
 
-    if (tool === "polygon" && draftPoly.length) setLoupe({ n, corner });
+    setHoverN(n);
+
+    // Near-origin cursor: signal that next click will close the polygon.
+    if ((tool === "polygon" || tool === "zone") && draftPoly.length >= 3) {
+      const [fx, fy] = screenOf(draftPoly[0]);
+      setNearOrigin(Math.hypot(sx - fx, sy - fy) < VERTEX_TOL + 3);
+    } else if (nearOrigin) {
+      setNearOrigin(false);
+    }
+
+    if ((tool === "polygon" || tool === "zone") && draftPoly.length) setLoupe({ n, corner });
+    if (tool === "circle" && draftCircleCenter) setLoupe({ n, corner });
+
+    // Edit-tool hover: detect vertex / edge / fill under cursor.
+    if (tool === "select" && !d) {
+      let ht: typeof editHoverType = null;
+      const selEl = selectedId ? elements.find((el) => el.id === selectedId) ?? null : null;
+      if (selEl && hitVertex(n, selEl) !== null) {
+        ht = "vertex";
+      } else {
+        outer: for (let i = elements.length - 1; i >= 0; i -= 1) {
+          const el = elements[i];
+          const pts = el.polygon.map((p) => screenOf(p));
+          for (let j = 0; j < pts.length; j += 1) {
+            const [ax, ay] = pts[j];
+            const [bx, by] = pts[(j + 1) % pts.length];
+            if (distToSegmentScreen(sx, sy, ax, ay, bx, by) < 8) { ht = "edge"; break outer; }
+          }
+          if (pointInPolygon(n.x, n.y, el.polygon)) { ht = "fill"; break; }
+        }
+      }
+      if (ht !== editHoverType) setEditHoverType(ht);
+    } else if (editHoverType !== null) {
+      setEditHoverType(null);
+    }
+
     if (!d) return;
 
     if (d.mode === "pan") {
@@ -351,7 +423,7 @@ export default function AnnotateCanvas({
 
   const selected = selectedId ? elements.find((el) => el.id === selectedId) ?? null : null;
   const draftScreen = useMemo(() => draftPoly.map((p) => screenOf(p)), [draftPoly, view, baseW, baseH]);
-  const cursor = cursorFor(tool, dragMode);
+  const cursor = cursorFor(tool, dragMode, nearOrigin, editHoverType);
 
   return (
     <div className="annStage" ref={stageRef}
@@ -416,6 +488,18 @@ export default function AnnotateCanvas({
           return <rect x={Math.min(a[0], b[0])} y={Math.min(a[1], b[1])} width={Math.abs(b[0] - a[0])} height={Math.abs(b[1] - a[1])}
             fill="rgba(37,99,235,0.12)" stroke="#2563eb" strokeWidth={2} strokeDasharray="5 4" />;
         })() : null}
+
+        {tool === "circle" && draftCircleCenter && hoverN ? (() => {
+          const [cx, cy] = screenOf(draftCircleCenter);
+          const [ex, ey] = screenOf(hoverN);
+          const r = Math.hypot(ex - cx, ey - cy);
+          return (
+            <g>
+              <circle cx={cx} cy={cy} r={r} fill="rgba(37,99,235,0.12)" stroke="#2563eb" strokeWidth={2} strokeDasharray="5 4" />
+              <circle cx={cx} cy={cy} r={5} fill="#2563eb" />
+            </g>
+          );
+        })() : null}
       </svg>
 
       {(tool === "polygon" || tool === "zone") && draftPoly.length ? (
@@ -423,6 +507,12 @@ export default function AnnotateCanvas({
           <button type="button" onClick={finishPolygon} disabled={draftPoly.length < 3}>{tool === "zone" ? "Cerrar zona" : "Cerrar"} ({draftPoly.length})</button>
           <button type="button" onClick={() => setDraftPoly((c) => c.slice(0, -1))}>↶ Punto</button>
           <button type="button" onClick={() => setDraftPoly([])}>✕</button>
+        </div>
+      ) : null}
+
+      {tool === "circle" && draftCircleCenter ? (
+        <div className="annDraftControls">
+          <button type="button" onClick={() => { setDraftCircleCenter(null); setLoupe(null); }}>✕ Cancelar</button>
         </div>
       ) : null}
 
@@ -441,14 +531,36 @@ export default function AnnotateCanvas({
   );
 }
 
-function cursorFor(tool: Tool, dragMode: NonNullable<DragState>["mode"] | null): React.CSSProperties["cursor"] {
+function cursorFor(
+  tool: Tool,
+  dragMode: NonNullable<DragState>["mode"] | null,
+  nearOrigin: boolean,
+  editHoverType: "vertex" | "edge" | "fill" | null,
+): React.CSSProperties["cursor"] {
   if (dragMode === "pan") return "grabbing";
   if (dragMode === "move") return "move";
   if (dragMode === "vertex") return "crosshair";
   if (dragMode === "rect") return "crosshair";
+  if (nearOrigin && (tool === "polygon" || tool === "zone")) return CURSOR_CLOSE_POLY as React.CSSProperties["cursor"];
+  if (tool === "select" && editHoverType) return CURSOR_WHITE_CROSS as React.CSSProperties["cursor"];
   if (tool === "pan") return "grab";
   if (tool === "select") return "default";
   return "crosshair";
+}
+
+function circlePolygon(cx: number, cy: number, rx: number, ry: number, n = 48): Point[] {
+  return Array.from({ length: n }, (_, i) => {
+    const a = (i / n) * 2 * Math.PI;
+    return { x: cx + Math.cos(a) * rx, y: cy + Math.sin(a) * ry };
+  });
+}
+
+function distToSegmentScreen(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1) return Math.hypot(px - ax, py - ay);
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
 }
 
 // Keep a rectangle rectangular while dragging corner `index` (order tl,tr,br,bl):
