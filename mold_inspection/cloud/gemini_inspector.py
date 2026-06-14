@@ -108,6 +108,24 @@ def _make_roi_mask(H: int, W: int, poly_norm: list) -> "np.ndarray":
     return mask
 
 
+def _localized_diff_area(diff_map: "np.ndarray", active_mask: "np.ndarray", struct_thr: float) -> int:
+    """
+    Largest contiguous area (px) inside ``active_mask`` where the SSIM difference
+    exceeds ``struct_thr`` — i.e. a strong *structural* change, not diffuse
+    lighting/angle noise. The SSIM gate uses this so a localized missing piece —
+    which barely moves the *global* mean diff (~0.02) — cannot be silently
+    approved just because the rest of the mold is identical.
+    """
+    import cv2
+    binary = (diff_map > struct_thr).astype(np.uint8) * 255
+    binary = cv2.bitwise_and(binary, active_mask)
+    # Light open removes SSIM speckle; the caller's area threshold rejects noise.
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, k, iterations=1)
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    return int(max((cv2.contourArea(c) for c in contours), default=0))
+
+
 def inspect_with_cv(
     reference_image_path: str | Path,
     candidate_image_path: str | Path,
@@ -123,10 +141,12 @@ def inspect_with_cv(
     Pipeline:
       1. Load both images (HEIC + GCS handled transparently).
       2. Scale to _MAX_W. ORB-align candidate to reference.
-      3. SSIM gate: mean_diff < _SAME_IMG_THR → images identical → correct immediately
-         (zero false positives, no API call).
-      4. Build ROI mask from the user-defined polygon (in reference-image space).
+      3. Build ROI mask from the user-defined polygon (in reference-image space).
          Everything outside the polygon is ignored — no background, no frame noise.
+      4. SSIM gate: short-circuit to "correct" ONLY when the global mean diff
+         < _SAME_IMG_THR AND there is no localized structural cluster inside the
+         ROI. A localized cluster falls through to the diff pipeline so a small
+         missing piece is never approved by a diluted global mean (false approval).
       5. Per-tile brightness normalise inside the ROI to cancel lighting differences.
       6. Adaptive-threshold pixel diff inside ROI: mean + _CV_SIGMA × std.
       7. Morphological close+open to merge component blobs and remove micro-noise.
@@ -163,14 +183,35 @@ def inspect_with_cv(
     # ── 2. ORB-align candidate to reference (full image for best feature coverage) ─
     aligned, valid_orb, ir = _orb_align(ref_img, cand_img)
 
-    # ── 3. SSIM gate ─────────────────────────────────────────────────────────────
-    diff_map   = _tile_diff_map(ref_img, aligned, valid_orb)
-    valid_vals = diff_map[valid_orb > 0]
-    mean_diff  = float(valid_vals.mean()) if valid_vals.size > 0 else 0.0
-    logger.info("CV gate: mean_diff=%.4f  ir=%.3f  threshold=%.3f",
-                mean_diff, ir, _SAME_IMG_THR)
+    # ── 3. ROI mask (polygon in reference-image space; applied to both images) ─────
+    # Built before the gate so it can reason about the inspection area only — a
+    # missing piece is localized, and a whole-image mean would dilute it.
+    roi_mask   = _make_roi_mask(IH, IW, poly)
+    active     = cv2.bitwise_and(valid_orb, roi_mask)   # inside polygon AND valid warp
+    roi_area   = int(np.count_nonzero(active))
+    if roi_area < 1000:
+        return _error_result("ROI mask is empty after ORB alignment — cannot compare.")
 
-    if mean_diff < _SAME_IMG_THR:
+    # ── 4. SSIM gate ─────────────────────────────────────────────────────────────
+    # Approve as "correct" ONLY when BOTH hold:
+    #   • global mean SSIM diff < _SAME_IMG_THR (images look near-identical), AND
+    #   • no localized structural cluster inside the ROI.
+    # The localized guard is essential: a single missing piece moves the global mean
+    # by well under _SAME_IMG_THR (~0.02 on a real fault), so the mean alone would
+    # silently approve a faulty mold. Project priority is false-rejection over
+    # false-approval, so a concentrated high-diff region falls through to the ROI
+    # diff pipeline below, which classifies and reports it.
+    diff_map      = _tile_diff_map(ref_img, aligned, valid_orb)
+    valid_vals    = diff_map[valid_orb > 0]
+    mean_diff     = float(valid_vals.mean()) if valid_vals.size > 0 else 0.0
+    gate_min_px   = max(200, int(0.003 * roi_area))     # smallest cluster worth flagging
+    local_diff_px = _localized_diff_area(diff_map, active, 1.0 - _SSIM_THR)
+    logger.info(
+        "CV gate: mean_diff=%.4f  ir=%.3f  threshold=%.3f  local_diff=%dpx (min=%d)",
+        mean_diff, ir, _SAME_IMG_THR, local_diff_px, gate_min_px,
+    )
+
+    if mean_diff < _SAME_IMG_THR and local_diff_px < gate_min_px:
         overlay = _draw_cv_overlay_roi(
             cand_img, poly, [], evidence_dir, family, zone_id, cand_p
         )
@@ -181,15 +222,9 @@ def inspect_with_cv(
             "missing_count": 0,
             "overlay_image": overlay,
             "method":        "classical_cv",
-            "cv_stats":      {"ir": round(ir, 3), "mean_diff": round(mean_diff, 4)},
+            "cv_stats":      {"ir": round(ir, 3), "mean_diff": round(mean_diff, 4),
+                              "local_diff_px": local_diff_px},
         }
-
-    # ── 4. ROI mask (polygon in reference-image space; applied to both images) ─────
-    roi_mask   = _make_roi_mask(IH, IW, poly)
-    active     = cv2.bitwise_and(valid_orb, roi_mask)   # inside polygon AND valid warp
-    roi_area   = int(np.count_nonzero(active))
-    if roi_area < 1000:
-        return _error_result("ROI mask is empty after ORB alignment — cannot compare.")
 
     # ── 5. Per-tile brightness normalise inside ROI ───────────────────────────────
     ref_g  = cv2.cvtColor(ref_img, cv2.COLOR_BGR2GRAY).astype(np.float32)
