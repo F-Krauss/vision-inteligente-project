@@ -55,29 +55,36 @@ def inspect_expected_pieces(
 
     result = YOLO(str(detector)).predict(str(image_path), conf=confidence, verbose=False)[0]
     names = result.names or {}
+    orig_h, orig_w = (result.orig_shape if getattr(result, "orig_shape", None) else (0, 0))
     detections = []
-    for box in result.boxes or []:
+    for index, box in enumerate(result.boxes or []):
         class_id = int(box.cls[0])
         detections.append(
             {
+                "det_index": index,
                 "class_name": str(names.get(class_id, class_id)),
                 "confidence": float(box.conf[0]),
                 "bbox": [float(value) for value in box.xyxy[0].tolist()],
             }
         )
 
+    required = [piece for piece in expected if piece.get("required", True)]
+    assigned_piece, consumed_dets = _assign_detections_to_pieces(detections, required, orig_w, orig_h)
+
     findings = []
     missing = 0
-    for piece in expected:
-        if not piece.get("required", True):
-            continue
-        match = max(
-            (item for item in detections if item["class_name"] == piece["class_name"]),
-            key=lambda item: item["confidence"],
-            default=None,
-        )
+    for piece in required:
+        match = assigned_piece.get(piece["id"])
         if match:
-            findings.append({"piece_id": piece["id"], "class_name": piece["class_name"], "status": "present", **match})
+            findings.append(
+                {
+                    "piece_id": piece["id"],
+                    "class_name": piece["class_name"],
+                    "status": "present",
+                    "confidence": match["confidence"],
+                    "bbox": match["bbox"],
+                }
+            )
         else:
             missing += 1
             findings.append(
@@ -90,11 +97,27 @@ def inspect_expected_pieces(
                 }
             )
 
+    # Detections that matched no expected slot are unexpected/extra parts. Reported
+    # for identification but kept out of the pass/fail gate (the detector can fire on
+    # background), so this never causes a false reject on its own.
+    unexpected = [det for det in detections if det["det_index"] not in consumed_dets]
+    for det in unexpected:
+        findings.append(
+            {
+                "piece_id": f"unexpected_{det['det_index']}",
+                "class_name": det["class_name"],
+                "status": "unexpected",
+                "confidence": det["confidence"],
+                "bbox": det["bbox"],
+            }
+        )
+
     return {
         "status": "correct" if missing == 0 else "review",
         "message": "Todas las piezas esperadas fueron detectadas." if missing == 0 else "Faltan piezas esperadas.",
         "findings": findings,
         "missing_count": missing,
+        "unexpected_count": len(unexpected),
     }
 
 
@@ -380,6 +403,67 @@ def _roi_bounds(piece: dict[str, Any], width: int, height: int) -> tuple[int, in
     right = max(left + 1, min(width, int(round(x2 * width))))
     bottom = max(top + 1, min(height, int(round(y2 * height))))
     return left, top, right, bottom
+
+
+def _assign_detections_to_pieces(
+    detections: list[dict[str, Any]],
+    required: list[dict[str, Any]],
+    orig_w: int,
+    orig_h: int,
+) -> tuple[dict[str, dict[str, Any]], set[int]]:
+    """Greedily assign detections to expected pieces by class AND location, consuming
+    each detection at most once. Without consumption + location, N expected parts of
+    the same class all resolve to a single same-class detection — so a specific
+    missing part (e.g. one of many identical screws) could never be flagged while any
+    survived. Highest (confidence × overlap) pairs win first. Returns the per-piece
+    assigned detection and the set of consumed detection indices."""
+    candidate_pairs: list[tuple[float, dict[str, Any], dict[str, Any]]] = []
+    for piece in required:
+        roi_px = _roi_bounds(piece, orig_w, orig_h) if orig_w and orig_h else None
+        for det in detections:
+            if det["class_name"] != piece["class_name"]:
+                continue
+            # When ROI/image size is unknown, fall back to class-only (overlap=1).
+            overlap = 1.0 if roi_px is None else _roi_match_score(det["bbox"], roi_px)
+            if overlap <= 0.0:
+                continue
+            candidate_pairs.append((det["confidence"] * (0.5 + 0.5 * overlap), piece, det))
+
+    candidate_pairs.sort(key=lambda item: item[0], reverse=True)
+    assigned_piece: dict[str, dict[str, Any]] = {}
+    consumed_dets: set[int] = set()
+    for _score, piece, det in candidate_pairs:
+        if piece["id"] in assigned_piece or det["det_index"] in consumed_dets:
+            continue
+        assigned_piece[piece["id"]] = det
+        consumed_dets.add(det["det_index"])
+    return assigned_piece, consumed_dets
+
+
+def _roi_match_score(det_bbox: list[float], roi_px: tuple[int, int, int, int]) -> float:
+    """Spatial agreement between a detection box and an expected-piece ROI, both in
+    pixels. Returns IoU, but treats a detection whose centre falls inside the ROI as
+    a match too (parts are often small relative to a generous hand-drawn ROI)."""
+    dx1, dy1, dx2, dy2 = det_bbox
+    rx1, ry1, rx2, ry2 = roi_px
+    inter_x1 = max(dx1, rx1)
+    inter_y1 = max(dy1, ry1)
+    inter_x2 = min(dx2, rx2)
+    inter_y2 = min(dy2, ry2)
+    inter_w = max(0.0, inter_x2 - inter_x1)
+    inter_h = max(0.0, inter_y2 - inter_y1)
+    intersection = inter_w * inter_h
+    det_area = max(0.0, dx2 - dx1) * max(0.0, dy2 - dy1)
+    roi_area = max(0.0, rx2 - rx1) * max(0.0, ry2 - ry1)
+    union = det_area + roi_area - intersection
+    iou = intersection / union if union > 0 else 0.0
+    if iou > 0:
+        return iou
+    cx = (dx1 + dx2) / 2.0
+    cy = (dy1 + dy2) / 2.0
+    if rx1 <= cx <= rx2 and ry1 <= cy <= ry2:
+        return 0.05  # weak-but-positive: centre inside ROI though boxes barely overlap
+    return 0.0
 
 
 def _change_score(mean_delta: float, changed_fraction: float) -> float:

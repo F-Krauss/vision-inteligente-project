@@ -78,6 +78,38 @@ def test_reference_piece_diff_global_change_is_review_without_missing_region(tmp
     assert result["uncertain_count"] == 1
 
 
+def _det(index, class_name, conf, bbox):
+    return {"det_index": index, "class_name": class_name, "confidence": conf, "bbox": bbox}
+
+
+def test_assignment_flags_specific_missing_screw_among_identical_parts():
+    # Three identical screws expected in three distinct slots; only the right slot
+    # actually has a screw. Class-only matching would mark all three present.
+    required = [
+        {"id": "screw_left", "class_name": "screw", "roi": [0.0, 0.0, 0.33, 1.0]},
+        {"id": "screw_mid", "class_name": "screw", "roi": [0.33, 0.0, 0.66, 1.0]},
+        {"id": "screw_right", "class_name": "screw", "roi": [0.66, 0.0, 1.0, 1.0]},
+    ]
+    detections = [_det(0, "screw", 0.9, [880, 40, 920, 80])]  # only inside the right slot (w=1000)
+    assigned, consumed = piece_inspector._assign_detections_to_pieces(detections, required, 1000, 100)
+
+    assert set(assigned) == {"screw_right"}
+    assert "screw_left" not in assigned and "screw_mid" not in assigned
+    assert consumed == {0}
+
+
+def test_assignment_consumes_each_detection_once():
+    # One detection cannot satisfy two overlapping expected slots.
+    required = [
+        {"id": "a", "class_name": "screw", "roi": [0.0, 0.0, 0.6, 1.0]},
+        {"id": "b", "class_name": "screw", "roi": [0.4, 0.0, 1.0, 1.0]},
+    ]
+    detections = [_det(0, "screw", 0.9, [480, 40, 520, 80])]  # in the overlap band
+    assigned, consumed = piece_inspector._assign_detections_to_pieces(detections, required, 1000, 100)
+
+    assert len(assigned) == 1 and len(consumed) == 1
+
+
 def _synthetic_fixture():
     cv2 = piece_inspector.cv2
     np = piece_inspector.np
