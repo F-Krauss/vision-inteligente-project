@@ -26,3 +26,6 @@ try-photos-last-mold-with-without pieces/
 try-photos-last-mold-with-without pieces.zip
 try-photos-mold-a/
 anotated-example/
+
+# Transient training candidates (model registry runtime output)
+data/model_registry/**/candidate_*/
