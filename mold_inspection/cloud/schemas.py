@@ -290,6 +290,11 @@ class ExpectedPieceRecord(BaseModel):
     critical: bool = True
 
 
+# Relevance hierarchy by contour colour: red (critical) > yellow (relevant) > green (minor).
+PieceImportance = Literal["critical", "relevant", "minor"]
+PieceShape = Literal["polygon", "rect"]
+
+
 class PieceAnnotationPayload(BaseModel):
     id: str | None = None
     element_id: str | None = None
@@ -297,6 +302,12 @@ class PieceAnnotationPayload(BaseModel):
     bbox: list[float]
     status: Literal["present", "missing", "uncertain"] = "present"
     notes: str | None = None
+    # Annotation-workspace fields (optional for back-compat with box-only data).
+    shape: PieceShape = "rect"
+    polygon: list[list[float]] | None = None  # normalized [[x, y], ...]
+    category_id: str | None = None
+    category_name: str | None = None
+    importance: PieceImportance | None = None
 
 
 class AnnotationCreateRequest(BaseModel):
@@ -310,6 +321,25 @@ class AnnotationCreateRequest(BaseModel):
     reference_id: str | None = None
     split: Literal["train", "val", "test"] = "train"
     annotations: list[PieceAnnotationPayload]
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AnnotationTransferRequest(BaseModel):
+    reference_image_uri: str
+    target_image_uris: list[str]
+    annotations: list[PieceAnnotationPayload]
+
+
+class AnnotationTransferResult(BaseModel):
+    image_uri: str
+    ok: bool
+    alignment_confidence: float = 0.0
+    message: str = ""
+    annotations: list[PieceAnnotationPayload] = Field(default_factory=list)
+
+
+class AnnotationTransferResponse(BaseModel):
+    results: list[AnnotationTransferResult] = Field(default_factory=list)
 
 
 class AutoAnnotationDraftRequest(BaseModel):
@@ -346,6 +376,7 @@ class AnnotationRecord(BaseModel):
     split: Literal["train", "val", "test"] = "train"
     annotations: list[PieceAnnotationPayload]
     box_count: int = 0
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class DatasetFromAnnotationsRequest(BaseModel):

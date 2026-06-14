@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .annotations import create_auto_annotation_draft, create_dataset_from_annotations, list_annotations, save_annotation
+from .annotations import create_auto_annotation_draft, create_dataset_from_annotations, list_annotations, save_annotation, transfer_annotations
 from .config import CloudSettings, load_settings
 from .datasets import create_dataset_from_examples
 from .guidance import create_capture_guidance
@@ -24,6 +24,7 @@ from .schemas import (
     AlignQualityRequest,
     AlignQualityResponse,
     AnnotationCreateRequest,
+    AnnotationTransferRequest,
     AutoAnnotationDraftRequest,
     CaptureGuidanceRequest,
     DatasetFromExamplesRequest,
@@ -291,6 +292,13 @@ def create_app(settings: CloudSettings | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @app.post("/v1/annotations/transfer")
+    def transfer_annotation_map(request: AnnotationTransferRequest) -> dict[str, Any]:
+        try:
+            return transfer_annotations(request, objects).model_dump()
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @app.get("/v1/annotations")
     def get_annotations(
         family: str | None = None,
@@ -330,6 +338,8 @@ def create_app(settings: CloudSettings | None = None) -> FastAPI:
 
     for collection in [
         "annotation_datasets",
+        "categories",
+        "section_samples",
         "families",
         "molds",
         "zones",

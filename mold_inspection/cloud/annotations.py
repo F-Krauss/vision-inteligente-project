@@ -13,6 +13,9 @@ from .references import expected_pieces_for_zone
 from .schemas import (
     AnnotationCreateRequest,
     AnnotationRecord,
+    AnnotationTransferRequest,
+    AnnotationTransferResponse,
+    AnnotationTransferResult,
     AutoAnnotationDraftRequest,
     AutoAnnotationDraftResponse,
     DatasetFromAnnotationsRequest,
@@ -56,9 +59,38 @@ def save_annotation(request: AnnotationCreateRequest, store: MetadataStore) -> A
         split=request.split,
         annotations=normalized,
         box_count=len(normalized),
+        metadata=request.metadata,
     )
     store.put("annotations", record_id, record.model_dump())
     return record
+
+
+def transfer_annotations(request: AnnotationTransferRequest, objects: ObjectStorage) -> AnnotationTransferResponse:
+    """Map the reference annotations onto each comparison image via homography."""
+    from mold_inspection.piece_inspector import transfer_annotations as _warp_onto_targets
+
+    if not request.annotations:
+        raise ValueError("No hay anotaciones de referencia para mapear.")
+    if not request.target_image_uris:
+        raise ValueError("Faltan imágenes de comparación.")
+
+    reference_path = objects.materialize(request.reference_image_uri)
+    target_paths = [objects.materialize(uri) for uri in request.target_image_uris]
+    source = [item.model_dump() for item in request.annotations]
+    raw_results = _warp_onto_targets(reference_path, target_paths, source)
+
+    results: list[AnnotationTransferResult] = []
+    for uri, item in zip(request.target_image_uris, raw_results):
+        results.append(
+            AnnotationTransferResult(
+                image_uri=uri,
+                ok=bool(item.get("ok")),
+                alignment_confidence=float(item.get("confidence") or 0.0),
+                message=str(item.get("message") or ""),
+                annotations=[PieceAnnotationPayload(**ann) for ann in item.get("annotations", [])],
+            )
+        )
+    return AnnotationTransferResponse(results=results)
 
 
 def list_annotations(
@@ -222,6 +254,9 @@ def _normalize_annotation(item: PieceAnnotationPayload, index: int) -> PieceAnno
     x1, y1, x2, y2 = [_clip(value) for value in item.bbox]
     if x2 <= x1 or y2 <= y1:
         raise ValueError(f"La caja #{index} no tiene tamaño válido.")
+    polygon = None
+    if item.polygon:
+        polygon = [[_clip(p[0]), _clip(p[1])] for p in item.polygon if len(p) == 2]
     return PieceAnnotationPayload(
         id=item.id or f"box_{index:03d}",
         element_id=item.element_id or item.id or f"box_{index:03d}",
@@ -229,6 +264,11 @@ def _normalize_annotation(item: PieceAnnotationPayload, index: int) -> PieceAnno
         bbox=[x1, y1, x2, y2],
         status=item.status,
         notes=item.notes,
+        shape=item.shape,
+        polygon=polygon,
+        category_id=item.category_id,
+        category_name=item.category_name,
+        importance=item.importance,
     )
 
 

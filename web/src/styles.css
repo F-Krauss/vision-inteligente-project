@@ -203,6 +203,155 @@ h2 {
   margin-bottom: 18px;
 }
 
+.captureSearchOnly {
+  position: relative;
+  max-width: 680px;
+  margin-bottom: 14px;
+}
+
+.captureSearchBox {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  padding: 0 12px;
+  background: #fff;
+}
+
+.captureSearchBox svg {
+  color: #64748b;
+}
+
+.captureSearchBox input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  padding: 11px 0;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.captureSearchResults {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  display: grid;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.captureSearchResults button {
+  display: grid;
+  gap: 2px;
+  border: 0;
+  border-bottom: 1px solid #eef2f7;
+  padding: 10px 12px;
+  background: #fff;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.captureSearchResults button:hover {
+  background: #f8fafc;
+}
+
+.captureSearchResults button:last-child {
+  border-bottom: 0;
+}
+
+.captureSearchResults span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.captureZones {
+  display: grid;
+  gap: 12px;
+}
+
+.captureZonesHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.captureZonesHeader span,
+.captureZonesHeader strong,
+.captureZonesHeader small {
+  display: block;
+}
+
+.captureZonesHeader > div > span,
+.captureZonesHeader small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.captureZonesHeader strong {
+  margin-top: 2px;
+  font-size: 18px;
+}
+
+.captureZoneGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.captureZoneCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.captureZoneCard.active {
+  border-color: #1d4ed8;
+  box-shadow: inset 0 0 0 1px #1d4ed8;
+}
+
+.captureZoneBody {
+  display: grid;
+  gap: 3px;
+  border: 0;
+  padding: 12px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.captureZoneBody span,
+.captureZoneBody small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.captureZoneBody strong {
+  font-size: 18px;
+}
+
+.captureZoneCard .primary {
+  align-self: center;
+  margin-right: 10px;
+}
+
 .referenceStrip {
   display: grid;
   grid-template-columns: 96px minmax(160px, 1fr) minmax(220px, 1.2fr) auto auto;
@@ -455,6 +604,26 @@ h2 {
   vector-effect: non-scaling-stroke;
 }
 
+.zoneFocusMask {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.zoneFocusShade {
+  fill: rgba(2, 6, 23, 0.62);
+}
+
+.zoneFocusWindow {
+  fill: rgba(255, 255, 255, 0.03);
+  stroke: rgba(96, 165, 250, 0.95);
+  stroke-width: 0.9;
+  vector-effect: non-scaling-stroke;
+}
+
 .cameraActions {
   display: flex;
   flex-wrap: wrap;
@@ -467,10 +636,10 @@ h2 {
   inset: 0;
   z-index: 1000;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
-  padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
-  background: #07111f;
+  padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  background: #0b1120;
   color: #fff;
 }
 
@@ -479,6 +648,7 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+  min-height: 44px;
 }
 
 .fullscreenTop strong,
@@ -488,16 +658,24 @@ h2 {
 
 .fullscreenTop strong {
   font-size: 18px;
+  letter-spacing: 0;
 }
 
 .fullscreenTop span {
   margin-top: 4px;
-  color: #cbd5e1;
+  color: #aebbd0;
   font-size: 13px;
   font-weight: 700;
 }
 
+.fullscreenCaptureGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+
 .fullscreenStageWrap {
+  position: relative;
   min-height: 0;
   display: grid;
 }
@@ -505,10 +683,34 @@ h2 {
 .fullscreenStageWrap .cameraStage {
   min-height: 0;
   height: 100%;
-  border-style: solid;
-  border-color: rgba(148, 163, 184, 0.45);
-  background: #020617;
+  overflow: hidden;
+  border: 0;
+  border-radius: 16px;
+  background: #060b14;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.24);
   cursor: default;
+}
+
+.fullscreenStageWrap .cameraStage::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 6;
+  width: min(72%, 760px);
+  aspect-ratio: 1.58;
+  border: 2px solid rgba(255, 255, 255, 0.72);
+  border-radius: 14px;
+  box-shadow: 0 0 0 999px rgba(2, 6, 23, 0.24);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.fullscreenStageWrap .frame,
+.fullscreenStageWrap .zoneFocusMask,
+.fullscreenStageWrap .expectedGuideOverlay,
+.fullscreenStageWrap .liveMoldPolygon {
+  display: none;
 }
 
 .fullscreenStageWrap .cameraStage video,
@@ -516,7 +718,89 @@ h2 {
   width: 100%;
   height: 100%;
   max-height: none;
-  object-fit: contain;
+  object-fit: cover;
+}
+
+.fullscreenStageWrap .cameraStage > span {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #6b7891;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.cameraStatusOverlay {
+  position: absolute;
+  inset: auto 50% 50% auto;
+  z-index: 8;
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  min-width: min(360px, 72%);
+  padding: 18px;
+  border: 1px solid rgba(148, 163, 184, 0.34);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #e5edf7;
+  text-align: center;
+  transform: translate(50%, 50%);
+  backdrop-filter: blur(10px);
+}
+
+.cameraStatusOverlay svg {
+  color: #fbbf24;
+}
+
+.cameraStatusOverlay strong {
+  font-size: 14px;
+}
+
+.cameraStatusOverlay span {
+  color: #aebbd0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cameraFloatingActions {
+  position: absolute;
+  right: 22px;
+  bottom: 22px;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.captureTrigger {
+  display: inline-grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  min-height: 58px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.86);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #101828;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+}
+
+.captureTrigger svg {
+  width: 24px;
+  height: 24px;
+}
+
+.captureTrigger:disabled {
+  opacity: 0.55;
+}
+
+.retryCameraButton {
+  border-color: rgba(255, 255, 255, 0.26);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e5edf7;
+  backdrop-filter: blur(10px);
 }
 
 .overlayControl {
@@ -531,19 +815,33 @@ h2 {
 }
 
 .fullscreenGuidance {
+  position: absolute;
+  left: max(22px, env(safe-area-inset-left));
+  right: auto;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  z-index: 11;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(220px, 0.6fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px;
-  border: 1px solid rgba(254, 202, 202, 0.45);
-  border-radius: 8px;
-  padding: 12px;
-  background: rgba(127, 29, 29, 0.38);
+  gap: 12px;
+  max-width: min(520px, calc(100vw - 150px));
+  min-height: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.7);
+  color: #f8fafc;
+  backdrop-filter: blur(12px);
 }
 
 .fullscreenGuidance.isOk {
-  border-color: rgba(187, 247, 208, 0.55);
-  background: rgba(20, 83, 45, 0.42);
+  border-color: rgba(187, 247, 208, 0.28);
+  background: rgba(20, 83, 45, 0.62);
+}
+
+.fullscreenGuidance.hasError {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(15, 23, 42, 0.74);
 }
 
 .fullscreenGuidance strong,
@@ -552,15 +850,14 @@ h2 {
 }
 
 .fullscreenGuidance span {
-  margin-top: 4px;
-  color: #dbeafe;
-  font-size: 12px;
+  margin-top: 2px;
+  color: #cbd5e1;
+  font-size: 11px;
   font-weight: 800;
 }
 
 .fullscreenGuidance ul {
-  margin: 0;
-  color: #f8fafc;
+  display: none;
 }
 
 .readinessMeter {
@@ -606,9 +903,10 @@ h2 {
 
 .frame {
   position: absolute;
-  inset: 9%;
-  border: 2px solid rgba(37, 99, 235, 0.78);
-  border-radius: 7px;
+  inset: 10%;
+  z-index: 5;
+  border: 1.5px solid rgba(96, 165, 250, 0.86);
+  border-radius: 10px;
   pointer-events: none;
 }
 
@@ -1702,6 +2000,146 @@ li + li {
   color: #991b1b;
 }
 
+/* App-wide product shell refresh: compact, sober, operations-first. */
+:root {
+  --bg: #eef2f6;
+  --surface: #ffffff;
+  --surface-soft: #f7f9fc;
+  --line: #d7dee8;
+  --line-strong: #b9c4d3;
+  --text: #182230;
+  --muted: #667085;
+  --brand: #2557a7;
+  --brand-quiet: #eaf2ff;
+  --radius: 6px;
+  --shadow: 0 8px 22px rgba(24, 34, 48, 0.055);
+}
+
+body {
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.shell {
+  grid-template-columns: 208px minmax(0, 1fr);
+  background: var(--bg);
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 14px 11px;
+  background: #101722;
+  border-right: 1px solid #263142;
+}
+
+.brand {
+  gap: 9px;
+  margin-bottom: 18px;
+  padding: 2px 4px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: #2557a7;
+  font-size: 11px;
+}
+
+.brand strong {
+  font-size: 13px;
+  line-height: 1.15;
+}
+
+.brand small {
+  margin-top: 1px;
+  color: #98a2b3;
+  font-size: 10px;
+}
+
+nav {
+  gap: 3px;
+}
+
+.navGroup {
+  margin: 13px 8px 5px;
+  color: #7d8a9d;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+nav button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 7px 8px;
+  border-radius: 5px;
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+nav button.active,
+nav button:hover {
+  background: #1c2736;
+  color: #fff;
+}
+
+.workspace {
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.topbar {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+h1 {
+  font-size: 18px;
+  letter-spacing: 0;
+}
+
+h2 {
+  font-size: 14px;
+}
+
+.topbar p {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.panel,
+.referenceStrip,
+.capture,
+.metricCard,
+.moldCard,
+.historyCard,
+.dashboardCard {
+  border-color: var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.primary,
+.secondary,
+.dangerButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 30px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+
 .fieldNote {
   padding: 0;
   font-size: 13px;
@@ -2575,11 +3013,11 @@ label {
   }
 
   nav {
-    display: flex;
+    display: grid;
     gap: 6px;
     max-width: 100%;
     min-width: 0;
-    overflow-x: auto;
+    overflow-x: hidden;
     padding-bottom: 2px;
   }
 
@@ -2588,9 +3026,9 @@ label {
   }
 
   nav button {
-    flex: 0 0 auto;
+    width: 100%;
     min-height: 34px;
-    white-space: nowrap;
+    white-space: normal;
   }
 
   .topbar,
@@ -2874,6 +3312,55 @@ select {
   font-size: 13px;
 }
 
+.fullscreenCamera .captureTrigger {
+  min-height: 58px;
+  padding: 0;
+}
+
+.fullscreenCamera .retryCameraButton {
+  min-height: 44px;
+}
+
+@media (max-width: 700px) {
+  .fullscreenCamera {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+
+  .fullscreenCaptureGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .fullscreenCamera .captureTrigger {
+    min-height: 56px;
+    width: 56px;
+    height: 56px;
+  }
+
+  .cameraFloatingActions {
+    right: 50%;
+    bottom: 18px;
+    transform: translateX(50%);
+  }
+
+  .captureTrigger svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .fullscreenGuidance {
+    left: 14px;
+    right: 14px;
+    bottom: 88px;
+    max-width: none;
+  }
+
+  .fullscreenGuidance ul {
+    display: none;
+  }
+}
+
 @media (max-width: 960px) {
   .workspace {
     padding: 12px;
@@ -2901,5 +3388,1083 @@ select {
 
   .fullscreenGuidance .primary {
     min-height: 46px;
+  }
+}
+
+/* Final shell lock for the redesigned annotation workflow. */
+.shell {
+  grid-template-columns: 208px minmax(0, 1fr);
+}
+
+.sidebar {
+  padding: 14px 11px;
+  background: #101722;
+  border-right: 1px solid #263142;
+}
+
+.workspace {
+  padding: 16px;
+  background: var(--bg);
+}
+
+nav button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 7px 8px;
+  border-radius: 5px;
+}
+
+@media (max-width: 960px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    height: auto;
+    padding: 10px 12px;
+  }
+
+  nav {
+    display: grid;
+    gap: 6px;
+    overflow-x: hidden;
+  }
+
+  .navGroup {
+    display: none;
+  }
+
+  nav button {
+    width: 100%;
+    min-height: 30px;
+    white-space: normal;
+  }
+
+  .workspace {
+    padding: 12px;
+  }
+}
+
+.annotatingShell {
+  display: block;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  background: #f4f6f9;
+}
+
+.annotatingShell .annotationWorkspace {
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.moldsTopbar {
+  align-items: flex-start;
+}
+
+.moldsTopActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.moldsTopActions input {
+  width: 210px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 9px;
+  background: #fff;
+}
+
+.moldsToolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 220px auto;
+  align-items: end;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.moldsToolbar label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.moldSearchBox {
+  position: relative;
+}
+
+.moldSearchBox svg {
+  position: absolute;
+  left: 10px;
+  bottom: 8px;
+  color: #667085;
+}
+
+.moldSearchBox input {
+  width: 100%;
+  padding-left: 30px;
+}
+
+.moldsToolbar select,
+.moldsToolbar input {
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+
+.moldsToolbar > span {
+  align-self: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.moldsBoard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+  align-items: start;
+}
+
+.moldsCardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 18px;
+}
+
+.moldDocCard {
+  display: grid;
+  min-height: 260px;
+  overflow: hidden;
+  border: 1px solid #d6dee8;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(24, 34, 48, 0.05);
+}
+
+.moldDocCard.active {
+  border-color: #2d62b8;
+  box-shadow: 0 0 0 2px rgba(45, 98, 184, 0.16), 0 12px 30px rgba(24, 34, 48, 0.08);
+}
+
+.moldDocPreview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 190px;
+  background:
+    linear-gradient(90deg, rgba(31, 41, 55, 0.05) 1px, transparent 1px),
+    linear-gradient(rgba(31, 41, 55, 0.05) 1px, transparent 1px),
+    #fbfcfe;
+  background-size: 22px 22px;
+}
+
+.moldDocMark {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #f97316;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.moldPreviewLines {
+  display: grid;
+  gap: 10px;
+  width: 68%;
+}
+
+.moldPreviewLines i {
+  display: block;
+  height: 9px;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.moldPreviewLines i:nth-child(2),
+.moldPreviewLines i:nth-child(4) {
+  width: 62%;
+  margin-left: 22%;
+}
+
+.moldDocPreview .moldState {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+}
+
+.moldDocFooter {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border-top: 1px solid #e4e9f0;
+  background: #fff;
+}
+
+.moldDocFooter strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.moldDocFooter span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.moldInfoPanel {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #d6dee8;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(24, 34, 48, 0.05);
+}
+
+.moldInfoHeader h2 {
+  margin: 8px 0 4px;
+  font-size: 20px;
+}
+
+.moldInfoHeader p,
+.moldInfoBlock span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.moldInfoMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.moldInfoActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.moldInfoActions .dangerButton {
+  grid-column: span 2;
+}
+
+.moldInfoBlock {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #e4e9f0;
+}
+
+.moldReadingsBlock {
+  gap: 6px;
+}
+
+.readingRow {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 0;
+  border-top: 1px solid #edf1f6;
+}
+
+.readingRow:first-of-type {
+  border-top: 0;
+}
+
+.readingRow .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #98a2b3;
+}
+
+.readingRow .dot.correct {
+  background: #16a34a;
+}
+
+.readingRow .dot.review {
+  background: #dc2626;
+}
+
+.readingRow .dot.retake_photo {
+  background: #f59e0b;
+}
+
+.readingRow div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.readingRow b,
+.readingRow em {
+  color: #182230;
+  font-size: 12px;
+  font-style: normal;
+}
+
+.readingRow small,
+.readingRow time {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.moldDetailOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(16, 24, 40, 0.18);
+}
+
+.moldDetailDrawer {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  width: min(560px, calc(100vw - 208px));
+  height: 100vh;
+  overflow: hidden;
+  border-left: 1px solid #d6dee8;
+  background: #fff;
+  padding: 18px;
+  box-shadow: -18px 0 44px rgba(24, 34, 48, 0.16);
+}
+
+.moldDetailDrawer header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e4e9f0;
+}
+
+.moldDetailDrawer h2 {
+  margin: 8px 0 4px;
+  font-size: 22px;
+}
+
+.moldDetailDrawer p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.moldDetailMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.keyDataGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.keyDataGrid span {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #e4e9f0;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #182230;
+}
+
+.keyDataGrid b {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.readingHistory {
+  max-height: 360px;
+  overflow: auto;
+}
+
+.readingRow.detailed {
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
+}
+
+.compactUploads {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.moldDocEmpty {
+  min-height: 260px;
+  align-content: center;
+  border: 1px dashed #b8c2cf;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.annotationModalHost {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 208px;
+  z-index: 80;
+  overflow: hidden;
+  border-left: 1px solid #263142;
+  background: #f4f6f9;
+}
+
+body.annotation-modal-open {
+  overflow: hidden;
+}
+
+body.annotation-modal-open #root,
+body.annotation-modal-open .shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+body.annotation-modal-open .workspace {
+  height: 100vh;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.annotationModalHost .annAppShell {
+  height: 100%;
+}
+
+@media (max-width: 960px) {
+  .moldsBoard {
+    grid-template-columns: 1fr;
+  }
+
+  .moldsToolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .moldInfoPanel {
+    position: static;
+  }
+
+  .moldDetailDrawer {
+    width: 100vw;
+  }
+
+  .annotationModalHost {
+    left: 0;
+    top: 92px;
+  }
+}
+
+/* Sidebar collapse and calmer spacing pass. */
+.shell {
+  grid-template-columns: 208px minmax(0, 1fr);
+  transition: grid-template-columns 160ms ease;
+}
+
+.shell.sidebarCollapsed {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+.sidebar {
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebarToggle {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  top: 12px;
+  right: 10px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(215, 226, 242, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.sidebarToggle:hover {
+  background: #1c2736;
+  color: #fff;
+}
+
+.shell.sidebarCollapsed .sidebar {
+  padding-inline: 10px;
+}
+
+.shell.sidebarCollapsed .brand {
+  justify-content: center;
+  padding: 42px 0 14px;
+}
+
+.shell.sidebarCollapsed .brand div,
+.shell.sidebarCollapsed .navGroup,
+.shell.sidebarCollapsed nav button span {
+  display: none;
+}
+
+.shell.sidebarCollapsed nav {
+  align-items: center;
+}
+
+.shell.sidebarCollapsed nav button {
+  justify-content: center;
+  width: 42px;
+  height: 38px;
+  padding: 0;
+}
+
+.shell.sidebarCollapsed nav button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.shell.sidebarCollapsed .annotationModalHost {
+  left: 64px;
+}
+
+.shell.sidebarCollapsed .moldDetailDrawer {
+  width: min(560px, calc(100vw - 64px));
+}
+
+.workspace {
+  padding: 18px;
+}
+
+.moldsTopbar,
+.moldsToolbar,
+.moldsBoard {
+  max-width: 1480px;
+  margin-inline: auto;
+}
+
+/* Top navigation replaces the old sidebar. */
+.shell {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  background: var(--bg);
+  transition: none;
+}
+
+.appTopNav {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 58px;
+  padding: 10px 18px;
+  border-bottom: 1px solid #d7dee8;
+  background: #101722;
+  color: #e5edf7;
+}
+
+.appTopNav .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.appTopNav .brand strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.1;
+}
+
+.appTopNav .brand small {
+  display: block;
+  margin-top: 2px;
+  color: #98a2b3;
+  font-size: 10px;
+}
+
+.appTopNav nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.appTopNav nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-height: 34px;
+  gap: 8px;
+  padding: 7px 11px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+
+.appTopNav nav button.active,
+.appTopNav nav button:hover {
+  background: #1c2736;
+  color: #fff;
+}
+
+.appTopNav nav button svg {
+  color: #91a4bd;
+}
+
+.appTopNav nav button.active svg,
+.appTopNav nav button:hover svg {
+  color: #d7e5f7;
+}
+
+.userMenu {
+  position: relative;
+}
+
+.userMenu summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid rgba(215, 226, 242, 0.18);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #e5edf7;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 750;
+}
+
+.userMenu summary::-webkit-details-marker {
+  display: none;
+}
+
+.userMenuPanel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  gap: 6px;
+  width: 210px;
+  padding: 10px;
+  border: 1px solid #d7dee8;
+  border-radius: 8px;
+  background: #fff;
+  color: #182230;
+  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.18);
+}
+
+.userMenuPanel small {
+  margin-bottom: 4px;
+  color: #667085;
+}
+
+.userMenuPanel button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: #f7f9fc;
+  color: #182230;
+  cursor: pointer;
+}
+
+.workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 18px;
+}
+
+.annotationModalHost {
+  left: 0;
+  top: 58px;
+  border-left: 0;
+}
+
+.moldDetailDrawer {
+  width: min(560px, 100vw);
+}
+
+body.annotation-modal-open .shell {
+  height: 100vh;
+}
+
+@media (max-width: 760px) {
+  .appTopNav {
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+  }
+
+  .appTopNav .brand {
+    grid-column: 1;
+  }
+
+  .appTopNav nav {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+
+  .appTopNav .brand small,
+  .userMenu summary span {
+    display: none;
+  }
+
+  .workspace {
+    padding: 12px;
+  }
+
+  .annotationModalHost {
+    top: 100px;
+  }
+}
+
+/* ─── Capture module — visual cohesion with Moldes ────────────────────── */
+
+.captureTopbar {
+  justify-content: center;
+  margin: 8px auto 16px;
+  text-align: center;
+}
+
+.captureTopbar > div {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+
+.captureTopbar h1 {
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.captureTopbar p {
+  margin-top: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.captureSearchOnly {
+  width: min(100%, 680px);
+  margin: 0 auto 22px;
+}
+
+.captureSearchBox {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.captureSearchBox svg {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.captureSearchBox input {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  outline: 0;
+  padding: 7px 0;
+  font-size: 13px;
+  font-weight: 700;
+  background: transparent;
+  color: var(--text);
+  border-radius: 0;
+}
+
+.captureSearchResults {
+  border-radius: 8px;
+  box-shadow: 0 18px 44px rgba(16, 24, 40, 0.14);
+}
+
+.captureSearchResults button strong {
+  font-size: 13px;
+}
+
+.captureSearchResults button span {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* Zones section container */
+.captureZones {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  gap: 14px;
+}
+
+/* Zones header: panel card like moldInfoPanel header */
+.captureZonesHeader {
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(24, 34, 48, 0.04);
+}
+
+/* Zone card grid: matches moldsCardGrid proportions */
+.captureZoneGrid {
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 16px;
+}
+
+/* Zone cards: styled like moldDocCard */
+.captureZoneCard {
+  display: flex;
+  flex-direction: column;
+  min-height: 190px;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(24, 34, 48, 0.05);
+  transition: box-shadow 0.15s;
+}
+
+.captureZoneCard:hover {
+  box-shadow: 0 12px 30px rgba(24, 34, 48, 0.09);
+}
+
+.captureZoneCard.active {
+  border-color: #2d62b8;
+  box-shadow: 0 0 0 2px rgba(45, 98, 184, 0.16), 0 12px 30px rgba(24, 34, 48, 0.08);
+}
+
+/* Card body: grid background like moldDocPreview */
+.captureZoneBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 14px;
+  background:
+    linear-gradient(90deg, rgba(31, 41, 55, 0.05) 1px, transparent 1px),
+    linear-gradient(rgba(31, 41, 55, 0.05) 1px, transparent 1px),
+    #fbfcfe;
+  background-size: 22px 22px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.captureZoneBody span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.captureZoneBody strong {
+  margin-top: 3px;
+  font-size: 17px;
+  color: var(--text);
+}
+
+.captureZoneBody small {
+  margin-top: auto;
+  padding-top: 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Capture button: full-width footer like moldDocFooter */
+.captureZoneCard .primary {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  margin: 0;
+  padding: 10px;
+  border-top: 1px solid #e4e9f0;
+  border-radius: 0 0 8px 8px;
+  background: #fff;
+  color: var(--brand);
+  font-size: 13px;
+  font-weight: 750;
+  align-self: unset;
+}
+
+.captureZoneCard .primary:hover:not(:disabled) {
+  background: var(--brand-quiet);
+}
+
+.captureZoneCard.active .primary {
+  background: var(--brand);
+  color: #fff;
+}
+
+/* Clear guided capture pass: light iPad-style scanner surface. */
+.fullscreenCamera {
+  gap: 12px;
+  background: #f3f6fa;
+  color: #182230;
+}
+
+.fullscreenTop strong {
+  color: #182230;
+}
+
+.fullscreenTop span {
+  color: #667085;
+}
+
+.fullscreenTop .secondary {
+  border-color: #d0d5dd;
+  background: #fff;
+  color: #182230;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+}
+
+.fullscreenStageWrap .cameraStage {
+  border: 1px solid #d9e0ea;
+  background: #e9eef5;
+  box-shadow: 0 12px 30px rgba(16, 24, 40, 0.08);
+}
+
+.fullscreenStageWrap .cameraStage video {
+  background: #eef2f7;
+}
+
+.fullscreenStageWrap .cameraStage::after {
+  width: min(62%, 720px);
+  border-color: rgba(102, 112, 133, 0.62);
+  box-shadow: 0 0 0 999px rgba(255, 255, 255, 0.3);
+}
+
+.cameraStatusOverlay {
+  border-color: #d0d5dd;
+  background: rgba(255, 255, 255, 0.86);
+  color: #182230;
+  box-shadow: 0 10px 30px rgba(16, 24, 40, 0.12);
+}
+
+.cameraStatusOverlay span {
+  color: #667085;
+}
+
+.cameraFloatingActions {
+  right: 28px;
+  bottom: auto;
+  top: 50%;
+  flex-direction: column;
+  transform: translateY(-44px);
+}
+
+.fullscreenCamera .captureTrigger,
+.captureTrigger {
+  width: 88px;
+  height: 88px;
+  min-height: 88px;
+  padding: 0;
+  border: 5px solid #fff;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 16px 34px rgba(37, 99, 235, 0.25), 0 4px 16px rgba(16, 24, 40, 0.18);
+}
+
+.captureTrigger svg {
+  width: 34px;
+  height: 34px;
+}
+
+.retryCameraButton {
+  border-color: #d0d5dd;
+  background: rgba(255, 255, 255, 0.92);
+  color: #182230;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.1);
+}
+
+.fullscreenGuidance {
+  border-color: #d0d5dd;
+  background: rgba(255, 255, 255, 0.86);
+  color: #182230;
+  box-shadow: 0 8px 22px rgba(16, 24, 40, 0.08);
+}
+
+.fullscreenGuidance.hasError,
+.fullscreenGuidance.isOk {
+  border-color: #d0d5dd;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.fullscreenGuidance span {
+  color: #667085;
+}
+
+.readinessMeter i {
+  background: #d0d5dd;
+}
+
+@media (max-width: 700px) {
+  .cameraFloatingActions {
+    right: 16px;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-38px);
+  }
+
+  .fullscreenCamera .captureTrigger,
+  .captureTrigger {
+    width: 76px;
+    height: 76px;
+    min-height: 76px;
+  }
+
+  .fullscreenGuidance {
+    right: auto;
+    bottom: 18px;
+    max-width: calc(100vw - 128px);
   }
 }

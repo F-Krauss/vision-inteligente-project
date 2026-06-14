@@ -1,0 +1,1450 @@
+.annAppShell {
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr);
+  gap: 12px;
+  height: calc(100vh - 32px);
+  min-height: 680px;
+}
+
+.annProjectRail,
+.annMainPane,
+.annPanel,
+.annToolbar,
+.annContextBar,
+.annReviewCard {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.annProjectRail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px;
+}
+
+.annRailHead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.annRailHead strong,
+.annReviewHead strong {
+  display: block;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.annRailHead small,
+.annReviewHead span,
+.annRailSection label,
+.annHint,
+.annEmpty,
+.annUploadTile small,
+.annSetupList small,
+.annSectionList small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.annRailIcon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: #fff;
+  background: #2557a7;
+}
+
+.annStatGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.annStatGrid span {
+  display: grid;
+  gap: 2px;
+  padding: 8px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fafc;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.annStatGrid b {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.annRailSection {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.annRailSection input,
+.annStepper input,
+.annCatCreate input,
+.annInspector select,
+.annInspector textarea {
+  width: 100%;
+  height: 30px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+}
+
+.annStepper {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  gap: 5px;
+}
+
+.annStepper button,
+.annSectionList button,
+.annSetupList button,
+.annSectionTabs button,
+.annImageTabs button,
+.annToolbar button,
+.annCatRow,
+.annCatCreate button,
+.annReviewActions button,
+.annDraftControls button,
+.annZoomCtl button,
+.annDanger,
+.annRailAction,
+.annStartButton {
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.annSectionList,
+.annSetupList {
+  display: grid;
+  gap: 5px;
+  align-content: start;
+  min-height: 0;
+  overflow: auto;
+}
+
+.annSectionList {
+  flex: 1;
+  padding-top: 4px;
+}
+
+.annSectionList button,
+.annSetupList button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-height: 58px;
+  padding: 8px;
+  text-align: left;
+}
+
+.annSectionList button span,
+.annSetupList button span {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  background: #eef2f7;
+  color: #475467;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.annSectionList button.on,
+.annSetupList button.on,
+.annSectionTabs button.on,
+.annImageTabs button.on,
+.annCatRow.on {
+  border-color: #2557a7;
+  background: #eef5ff;
+  color: #183b75;
+}
+
+.annRailAction,
+.annStartButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  margin-top: 12px;
+  background: #2557a7;
+  color: #fff;
+  border-color: #2557a7;
+}
+
+.annMainPane {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  padding: 12px;
+}
+
+.annHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.annHeader h1 {
+  font-size: 17px;
+  line-height: 1.2;
+}
+
+.annHeader p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.annHeaderActions {
+  display: flex;
+  gap: 7px;
+}
+
+.annHeaderActions button,
+.annReviewActions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inlineError {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.annSetup {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+  padding-top: 12px;
+}
+
+.annUploadGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+
+.annUploadTile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 250px;
+  overflow: hidden;
+  border: 1px dashed #b8c2cf;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475467;
+  cursor: pointer;
+}
+
+.annUploadTile input {
+  display: none;
+}
+
+.annUploadTile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.annUploadTile span,
+.annUploadTile small {
+  position: relative;
+  z-index: 1;
+  max-width: 85%;
+  padding: 5px 8px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.9);
+  text-align: center;
+}
+
+.annStartButton {
+  grid-column: 2;
+  width: fit-content;
+  padding: 0 12px;
+}
+
+.annEditStack {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.annContextBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px;
+}
+
+.annSectionTabs,
+.annImageTabs,
+.annToolGroup,
+.annImpPicker,
+.annReviewActions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.annSectionTabs {
+  min-width: 0;
+  overflow: auto;
+}
+
+.annSectionTabs button,
+.annImageTabs button {
+  min-height: 28px;
+  padding: 5px 9px;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.annEditor {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.annToolbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px;
+}
+
+.annToolGroup.grow {
+  flex: 1;
+}
+
+.annToolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.annToolbar button:disabled,
+.annRailAction:disabled,
+.annStartButton:disabled,
+.annImageTabs button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.annToolbar button.on,
+.annToolbar button.primary,
+.annHeaderActions .primary,
+.annReviewActions .primary {
+  background: #2557a7;
+  color: #fff;
+  border-color: #2557a7;
+}
+
+.annToolbar button.secondary {
+  background: #f8fafc;
+}
+
+.annImpToolbar {
+  padding-left: 7px;
+  border-left: 1px solid var(--line);
+}
+
+.annImpBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 5px 7px;
+  border: 1px solid var(--line-strong);
+  border-radius: 5px;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.annImpDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.16);
+}
+
+.annCountChips {
+  color: var(--muted);
+  font-size: 11px;
+  gap: 7px;
+}
+
+.annCountChips .chip {
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 900;
+  text-align: center;
+}
+
+.annCountChips .chip.crit {
+  background: #dc2626;
+}
+
+.annCountChips .chip.rel {
+  background: #f59e0b;
+}
+
+.annCountChips .chip.min {
+  background: #22c55e;
+}
+
+.annBody {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.annStage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #0f172a;
+  border-radius: 8px;
+  background:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%),
+    #0d1119;
+  background-size: 18px 18px;
+  cursor: crosshair;
+}
+
+.annWorld {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.4);
+}
+
+.annWorld img {
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.annOverlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.annHandle {
+  fill: #fff;
+  stroke: #111827;
+  stroke-width: 1.5;
+}
+
+.annHandle.first {
+  fill: #2563eb;
+}
+
+.annDraftControls {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  display: flex;
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.92);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+  transform: translateX(-50%);
+}
+
+.annDraftControls button {
+  min-height: 28px;
+  padding: 4px 9px;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #1f2937;
+  color: #fff;
+}
+
+.annLoupe {
+  position: absolute;
+  top: 12px;
+  width: 150px;
+  height: 150px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.annLoupe.tl {
+  right: 12px;
+}
+
+.annLoupe.tr {
+  left: 12px;
+}
+
+.annZoomCtl {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.92);
+}
+
+.annZoomCtl button {
+  width: 28px;
+  height: 28px;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #1f2937;
+  color: #fff;
+  line-height: 1;
+}
+
+.annZoomBadge {
+  min-width: 45px;
+  padding: 0 6px;
+  color: #dbe4ef;
+  font-size: 11px;
+  text-align: center;
+}
+
+.annRail {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+}
+
+.annPanel {
+  padding: 10px;
+}
+
+.annPanel h3 {
+  margin: 0 0 5px;
+  font-size: 13px;
+}
+
+.annHint {
+  margin: 0 0 8px;
+}
+
+.annCatList {
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.annCatRow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 7px;
+  padding: 7px;
+  text-align: left;
+}
+
+.annCatDot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.annCatDot.none {
+  background: repeating-conic-gradient(#cbd5e1 0% 25%, #fff 0% 50%) 50% / 8px 8px;
+}
+
+.annCatName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.annCatCount {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.annCatCreate {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.annCatCreate button {
+  padding: 0 9px;
+  background: #2557a7;
+  color: #fff;
+  border-color: #2557a7;
+}
+
+.annInspector .annField {
+  margin-bottom: 9px;
+}
+
+.annInspector label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.annInspector textarea {
+  min-height: 58px;
+  resize: vertical;
+}
+
+.annMeta {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+  font-size: 11px;
+}
+
+.annMeta div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.annMeta dt {
+  color: var(--muted);
+}
+
+.annMeta dd {
+  max-width: 190px;
+  margin: 0;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.annDanger {
+  width: 100%;
+  min-height: 30px;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.annMappingState {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  flex: 1;
+  min-height: 420px;
+  color: #1f2937;
+  text-align: center;
+}
+
+.annMappingState svg {
+  color: #2557a7;
+}
+
+.annMappingState strong {
+  font-size: 16px;
+}
+
+.annMappingState span {
+  color: var(--muted);
+}
+
+.annReviewGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-height: 0;
+  padding-top: 12px;
+  overflow: auto;
+}
+
+.annReviewCard {
+  display: flex;
+  min-height: 430px;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.annReviewCard.approved {
+  border-color: #86efac;
+}
+
+.annReviewHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.annApproved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.annReviewCanvas {
+  flex: 1;
+  min-height: 0;
+}
+
+.annReviewActions {
+  justify-content: flex-end;
+  padding: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.annReviewActions button {
+  min-height: 30px;
+  padding: 5px 9px;
+}
+
+.annUploadBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 11px;
+  border-radius: 6px;
+  background: #2557a7;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.annUploadBtn input {
+  display: none;
+}
+
+.annEmptyState {
+  padding: 60px 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .annAppShell {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .annProjectRail {
+    max-height: none;
+  }
+
+  .annSectionList {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+
+  .annSetup,
+  .annBody,
+  .annReviewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .annUploadGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .annStartButton {
+    grid-column: 1;
+  }
+
+  .annStage {
+    min-height: 62vh;
+  }
+}
+
+@media (max-width: 720px) {
+  .annHeader,
+  .annContextBar,
+  .annToolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .annHeaderActions,
+  .annImageTabs {
+    width: 100%;
+  }
+
+  .annHeaderActions button,
+  .annImageTabs button {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* Lucid-style annotation editor: tablet/desktop only, no page scroll. */
+.annAppShell {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  grid-template-rows: 52px minmax(0, 1fr);
+  gap: 0;
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  background: #f4f6f9;
+  color: #242a31;
+}
+
+.annTopFrame {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  height: 52px;
+  padding: 0 12px;
+  border-bottom: 1px solid #d8dee7;
+  background: #fff;
+}
+
+.annTopLeft,
+.annTopActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.annTopLeft > div:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.annTopLeft strong {
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.annTopLeft span {
+  overflow: hidden;
+  color: #647084;
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.annTopMark,
+.annIconButton,
+.annTopButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cdd6e3;
+  border-radius: 6px;
+  background: #fff;
+  color: #1f2937;
+  font: inherit;
+  font-weight: 760;
+}
+
+.annTopMark {
+  width: 30px;
+  height: 30px;
+  border-color: #2d62b8;
+  background: #2d62b8;
+  color: #fff;
+}
+
+.annIconButton {
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+}
+
+.annTopButton {
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.annTopButton.primary {
+  border-color: #15803d;
+  background: #16a34a;
+  color: #fff;
+}
+
+.annTopButton:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.annImageSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 34px;
+  padding: 3px;
+  border-radius: 6px;
+  background: #eef2f7;
+}
+
+.annImageSwitch button {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #3b4657;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.annImageSwitch button.on {
+  background: #fff;
+  color: #1d4f9a;
+  box-shadow: 0 0 0 1px #b6c9ec;
+}
+
+.annImageSwitch button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.annProjectRail {
+  grid-column: 1;
+  grid-row: 2;
+  height: 100%;
+  min-height: 0;
+  padding: 12px;
+  overflow: hidden;
+  border: 0;
+  border-right: 1px solid #d8dee7;
+  border-radius: 0;
+  background: #fbfcfe;
+}
+
+.annMainPane {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #f4f6f9;
+  padding: 0;
+}
+
+.annRailHead {
+  height: 44px;
+  padding-bottom: 10px;
+}
+
+.annStatGrid {
+  margin: 10px 0;
+}
+
+.annStatGrid span {
+  min-height: 52px;
+  padding: 7px;
+}
+
+.annRailSection {
+  margin-bottom: 9px;
+}
+
+.annSectionList {
+  gap: 6px;
+}
+
+.annSectionList button,
+.annSetupList button {
+  min-height: 54px;
+  border-color: transparent;
+  border-radius: 6px;
+  background: transparent;
+}
+
+.annSectionList button.on,
+.annSetupList button.on {
+  border-color: #2d62b8;
+  background: #edf4ff;
+  box-shadow: inset 3px 0 0 #2d62b8;
+}
+
+.annRailAction {
+  height: 36px;
+  margin-top: 10px;
+  border-color: #2d62b8;
+  background: #2d62b8;
+}
+
+.annSetup {
+  grid-template-columns: minmax(0, 1120px);
+  grid-template-rows: minmax(260px, 360px) 42px;
+  justify-content: center;
+  align-content: center;
+  gap: 18px;
+  height: 100%;
+  min-height: 0;
+  padding: 24px clamp(22px, 4vw, 56px);
+  overflow: hidden;
+}
+
+.annSetupList {
+  display: none;
+}
+
+.annUploadGrid {
+  grid-column: 1;
+  grid-row: 1;
+  height: auto;
+  min-height: 0;
+  max-width: 1120px;
+  grid-auto-rows: 1fr;
+  gap: 16px;
+}
+
+.annUploadTile {
+  min-height: 0;
+  height: 100%;
+  border-radius: 6px;
+  background: #fbfcfe;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.annUploadTile:hover {
+  border-color: #2d62b8;
+  box-shadow: 0 10px 26px rgba(24, 34, 48, 0.08);
+  transform: translateY(-1px);
+}
+
+.annStartButton {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: center;
+  align-self: start;
+  width: auto;
+  height: 36px;
+  padding: 0 18px;
+}
+
+.annEditStack {
+  height: 100%;
+  padding-top: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.annContextBar,
+.annToolbar {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 6px 8px;
+  border-color: #d8dee7;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.annContextBar {
+  display: none;
+}
+
+.annSectionTabs,
+.annImageTabs {
+  max-width: 100%;
+}
+
+.annSectionTabs button,
+.annImageTabs button,
+.annToolbar button {
+  min-height: 28px;
+  border-color: #cfd7e3;
+  border-radius: 5px;
+  background: #fff;
+  color: #242a31;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.annToolbar {
+  height: 40px;
+  border-width: 0 0 1px;
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.annToolbar button.zoneOn {
+  border-color: #2f80ed;
+  background: #eaf3ff;
+  color: #0f5fb8;
+}
+
+.annToolbar button.zoneReady {
+  border-color: #cfd7e3;
+  background: #fff;
+  color: #242a31;
+}
+
+.annToolbar button.zoneMissing {
+  border-color: #2f80ed;
+  background: #2f80ed;
+  color: #fff;
+}
+
+.annToolbar button.on,
+.annToolbar button.primary,
+.annImageTabs button.on,
+.annSectionTabs button.on {
+  border-color: #2d62b8;
+  background: #eaf2ff;
+  color: #1d4f9a;
+}
+
+.annToolbar button.primary {
+  background: #2d62b8;
+  color: #fff;
+}
+
+.annToolbar button.secondary {
+  background: #f8fafc;
+}
+
+.annImpBtn {
+  min-height: 28px;
+  padding: 5px 8px;
+}
+
+.annBody {
+  grid-template-columns: minmax(0, 1fr) 306px;
+  gap: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.annBody.railClosed {
+  grid-template-columns: minmax(0, 1fr) 42px;
+}
+
+.annStage {
+  min-height: 0;
+  border-width: 0;
+  border-radius: 0;
+  background:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 25%, transparent 25%),
+    #111720;
+  background-size: 18px 18px;
+  cursor: grab;
+}
+
+.annStage:active {
+  cursor: grabbing;
+}
+
+.annWorld {
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.36);
+}
+
+.annRail {
+  width: auto;
+  min-width: 0;
+  flex: initial;
+  gap: 8px;
+  overflow: hidden;
+  padding: 10px;
+  border-left: 1px solid #d8dee7;
+  background: #fff;
+}
+
+.annRail.collapsed {
+  display: grid;
+  place-items: start center;
+  padding: 0;
+}
+
+.annRailCollapsedButton {
+  display: grid;
+  place-items: center;
+  gap: 5px;
+  width: 42px;
+  min-height: 78px;
+  border: 1px solid #d8dee7;
+  border-radius: 6px;
+  background: #fff;
+  color: #344054;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.annPanel {
+  min-height: 0;
+  border-width: 0 0 1px;
+  border-color: #e1e6ef;
+  border-radius: 0;
+  padding: 10px;
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.annCategories {
+  flex: 0 0 auto;
+}
+
+.annInspector {
+  flex: 1 1 auto;
+}
+
+.annCatList {
+  max-height: min(26vh, 220px);
+}
+
+.annCatRow {
+  min-height: 30px;
+  border-radius: 5px;
+}
+
+.annCatCreate {
+  grid-template-columns: minmax(0, 1fr) 72px;
+}
+
+.annCatCreate button {
+  min-height: 30px;
+}
+
+.annMeta {
+  margin: 6px 0;
+}
+
+.annZoomCtl {
+  right: 10px;
+  bottom: 10px;
+  border-radius: 6px;
+}
+
+.annStatusBar {
+  display: flex;
+  flex: 0 0 28px;
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px;
+  border-width: 1px 0 0;
+  border-color: #d8dee7;
+  border-radius: 0;
+  background: #fff;
+  color: #526071;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.annStatusBar .zoneOk {
+  color: #0f5fb8;
+  font-weight: 800;
+}
+
+.annStatusBar .zoneNeed {
+  color: #dc2626;
+  font-weight: 900;
+}
+
+.annStatusBar span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.annStatusBar b {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #526071;
+  font-weight: 700;
+}
+
+.annStatusBar i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.annMappingState {
+  height: 100%;
+  min-height: 0;
+  border: 1px solid #d8dee7;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.annReviewGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  height: 100%;
+  min-height: 0;
+  padding-top: 0;
+  overflow: hidden;
+}
+
+.annReviewCard {
+  min-height: 0;
+}
+
+.annReviewCanvas {
+  min-height: 0;
+}
+
+@media (max-width: 1100px) {
+  .annAppShell {
+    grid-template-columns: 216px minmax(0, 1fr);
+    grid-template-rows: 52px minmax(0, 1fr);
+    height: 100vh;
+  }
+
+  .annProjectRail {
+    max-height: none;
+  }
+
+  .annSectionList {
+    grid-template-columns: 1fr;
+  }
+
+  .annSetup {
+    grid-template-columns: 210px minmax(0, 1fr);
+  }
+
+  .annUploadGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .annBody,
+  .annReviewGrid {
+    grid-template-columns: minmax(0, 1fr) 286px;
+  }
+
+  .annBody.railClosed {
+    grid-template-columns: minmax(0, 1fr) 42px;
+  }
+}
+
+@media (max-width: 900px) {
+  .annAppShell {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+
+  .annBody {
+    grid-template-columns: minmax(0, 1fr) 42px;
+  }
+
+  .annRail:not(.collapsed) {
+    display: none;
+  }
+}
+
+/* Final setup alignment: one clean centered preparation surface. */
+.annAppShell .annSetup {
+  grid-template-columns: minmax(0, 1120px);
+  grid-template-rows: minmax(260px, 360px) 42px;
+  justify-content: center;
+  align-content: center;
+  gap: 18px;
+  padding: 24px clamp(22px, 4vw, 56px);
+}
+
+.annAppShell .annSetupList {
+  display: none;
+}
+
+.annAppShell .annUploadGrid {
+  grid-column: 1;
+  grid-row: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 1120px;
+  gap: 16px;
+}
+
+.annAppShell .annStartButton {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: center;
+}

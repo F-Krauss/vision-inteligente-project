@@ -6,22 +6,35 @@ import {
   ClipboardCheck,
   Database,
   Gauge,
-  History,
   LayoutDashboard,
+  LogOut,
   PencilRuler,
   RefreshCw,
   Search,
+  Settings,
   ShieldCheck,
-  Target,
   TrendingUp,
-  TriangleAlert
+  TriangleAlert,
+  UserCircle
 } from "lucide-react";
 import { supabase, supabaseConfigured } from "./utils/supabase";
-import LocalLab from "./lab/LocalLab";
+import {
+  API_BASE,
+  isLocalRuntime,
+  resolveUrl,
+  displayUrl,
+  postJson,
+  getJson,
+  uploadSystemFile,
+  uploadFiles,
+  messageFrom,
+} from "./utils/api";
+import { type Point, clamp, polygonPoints, distanceToSegment, insertPointInClosestSegment } from "./utils/geometry";
+import AnnotateApp from "./annotate/AnnotateApp";
 import "./styles.css";
 
 type InspectionStatus = "idle" | "uploading" | "running" | "correct" | "review" | "retake_photo" | "error";
-type View = "lab" | "capture" | "annotations" | "molds" | "segmenter" | "validations" | "history";
+type View = "capture" | "molds" | "validations";
 
 type Zone = {
   id: string;
@@ -91,6 +104,8 @@ type MoldSummary = {
   pieceCount: number;
   confidence: number | null;
   falsePassRate: number | null;
+  createdAt?: string;
+  lastActionAt?: string;
   lastTraining?: string;
   lastInspection?: string;
 };
@@ -148,7 +163,6 @@ type NormalizedInspection = {
   missingCount: number;
 };
 
-type Point = { x: number; y: number };
 
 type PieceFinding = {
   status?: "present" | "missing" | "uncertain" | string;
@@ -255,7 +269,6 @@ type MoldValidationSession = {
   section_results: Record<string, Record<string, unknown>>;
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE || "";
 const SUPABASE_ENABLED = supabaseConfigured && import.meta.env.VITE_ENABLE_SUPABASE === "true" && !isLocalRuntime();
 const DEFAULT_ZONES: Zone[] = [{ id: "frontal_zona_01", family: "molde_demo", name: "Frontal zona 01" }];
 const VIEW_OPTIONS: Array<{ value: MoldViewSide; label: string }> = [
@@ -272,10 +285,11 @@ const DEFAULT_SEGMENTER_POLYGON: Point[] = [
 ];
 
 function App() {
-  const [view, setView] = useState<View>("lab");
+  const [view, setView] = useState<View>("capture");
   const [family, setFamily] = useState("molde_demo");
   const [zoneId, setZoneId] = useState("frontal_zona_01");
   const [moldId, setMoldId] = useState("");
+  const [selectedCaptureMold, setSelectedCaptureMold] = useState<MoldSummary | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [captureOpen, setCaptureOpen] = useState(false);
   const [status, setStatus] = useState<InspectionStatus>("idle");
@@ -421,6 +435,7 @@ function App() {
   }
 
   function selectMold(mold: MoldSummary) {
+    setSelectedCaptureMold(mold);
     setFamily(mold.family);
     setZoneId(mold.zoneId);
     setMoldId(mold.id);
@@ -428,6 +443,11 @@ function App() {
     setResult(null);
     setStatus("idle");
     setMessage("Lista para capturar una zona.");
+  }
+
+  function startSectionCapture(section: MoldSection) {
+    activateSection(section);
+    setCaptureOpen(true);
   }
 
   function activateSection(section: MoldSection) {
@@ -473,81 +493,66 @@ function App() {
 
   return (
     <main className="shell">
-      <aside className="sidebar">
+      <header className="appTopNav">
         <div className="brand">
-          <span className="mark">MV</span>
+          <span className="mark">3.2</span>
           <div>
-            <strong>Mold Vision</strong>
-            <small>Inspección cloud</small>
+            <strong>Inspeccion de moldes</strong>
+            <small>Beta</small>
           </div>
         </div>
         <nav aria-label="Navegación principal">
-          <span className="navGroup">Operación</span>
-          <NavButton icon={Target} label="Prueba local" active={view === "lab"} onClick={() => setView("lab")} />
           <NavButton icon={Camera} label="Captura" active={view === "capture"} onClick={() => setView("capture")} />
-          <NavButton icon={PencilRuler} label="Anotar" active={view === "annotations"} onClick={() => setView("annotations")} />
-          <span className="navGroup">Gestión</span>
-          <NavButton icon={Database} label="Moldes" active={view === "molds"} onClick={() => setView("molds")} />
-          <NavButton icon={Target} label="Guía cámara" active={view === "segmenter"} onClick={() => setView("segmenter")} />
-          <span className="navGroup">Dirección</span>
+          <NavButton icon={PencilRuler} label="Moldes" active={view === "molds"} onClick={() => setView("molds")} />
           <NavButton icon={LayoutDashboard} label="Validaciones" active={view === "validations"} onClick={() => setView("validations")} />
-          <NavButton icon={History} label="Historial" active={view === "history"} onClick={() => setView("history")} />
         </nav>
-      </aside>
+        <details className="userMenu">
+          <summary aria-label="Menú de usuario">
+            <UserCircle size={18} />
+            <span>Usuario</span>
+          </summary>
+          <div className="userMenuPanel">
+            <strong>Operador</strong>
+            <small>moldvision.local</small>
+            <button type="button"><Settings size={14} /> Ajustes</button>
+            <button type="button"><LogOut size={14} /> Salir</button>
+          </div>
+        </details>
+      </header>
 
       <section className="workspace">
-        {view === "lab" && <LocalLab />}
-
         {view === "molds" && <MoldsView onTest={(mold) => { selectMold(mold); setView("capture"); }} />}
-
-        {view === "segmenter" && <SegmenterTrainingView />}
 
         {view === "capture" && (
           <>
-            <header className="topbar">
+            <header className="topbar captureTopbar">
               <div>
                 <h1>Captura</h1>
-                <p>Selecciona el molde y toma una foto guiada. El sistema valida la imagen antes de inspeccionar.</p>
+                <p>Busca molde. Elige zona. Captura.</p>
               </div>
-              <button className="primary" onClick={() => setCaptureOpen(true)} disabled={status === "uploading" || status === "running"}>Capturar foto</button>
             </header>
 
-            <MoldQuickSelect family={family} zoneId={zoneId} onSelect={selectMold} />
-            <SectionPlanControl plan={sectionPlan} activeSectionId={activeSectionId} syncState={sectionPlanSync} onPlanChange={saveSectionPlan} onSelectSection={activateSection} />
-            <ReferenceSetup
-              family={family}
-              zoneId={zoneId}
-              reference={zoneReference}
-              expectedPieces={expectedPieces}
-              onSaved={(reference) => setZoneReference(reference)}
-            />
-            <SectionWorkflowPanel family={family} zoneId={zoneId} reference={zoneReference} expectedPieces={expectedPieces} result={result} status={status} sections={sectionPlan.sections} activeSectionId={activeSectionId} sectionResults={sectionResults} validationSession={validationSession} onSelectSection={activateSection} />
+            <CaptureMoldSearch selectedMold={selectedCaptureMold} onSelect={selectMold} fallbackFamily={family} fallbackZoneId={zoneId} />
 
-            <section className="captureLayout">
-              <div className="panel capture">
-                <div className="captureHeader">
-                  <strong>Foto para inspección</strong>
-                  <span className={`status ${status}`}>{statusLabel(status)}</span>
-                </div>
-                <CaptureStillPanel previewUrl={previewUrl} referenceUrl={displayUrl(zoneReference?.image_url || zoneReference?.image_uri || "")} status={status} onOpen={() => setCaptureOpen(true)} onFile={setFile} onInspect={runInspection} />
-                <div className="hintRow">
-                  <span>Molde acostado completo</span>
-                  <span>Mismo ángulo que referencia</span>
-                  <span>Pernos y bloques visibles</span>
-                </div>
-              </div>
-            </section>
+            {selectedCaptureMold ? (
+              <MoldCaptureZones
+                mold={selectedCaptureMold}
+                sections={sectionPlan.sections}
+                activeSectionId={activeSectionId}
+                sectionResults={sectionResults}
+                validationSession={validationSession}
+                disabled={status === "uploading" || status === "running"}
+                onSelectSection={activateSection}
+                onCapture={startSectionCapture}
+              />
+            ) : null}
 
             {result ? <InspectionResultPanel status={status} message={message} result={result} previewUrl={previewUrl} family={family} zoneId={zoneId} /> : null}
             {captureOpen ? <CameraCapture family={family} zoneId={zoneId} previewUrl={previewUrl} reference={zoneReference} expectedPieces={expectedPieces} onFile={setFile} onCapture={handleCaptured} onCancel={() => setCaptureOpen(false)} fullscreen /> : null}
           </>
         )}
 
-        {view === "annotations" && <AnnotationWorkspace family={family} zoneId={zoneId} expectedPieces={expectedPieces} reference={zoneReference} />}
-
         {view === "validations" && <LeadershipDashboard />}
-
-        {view === "history" && <HistoryView />}
       </section>
     </main>
   );
@@ -555,7 +560,7 @@ function App() {
 
 function NavButton({ icon: Icon, label, active, onClick }: { icon: React.ElementType; label: string; active: boolean; onClick: () => void }) {
   return (
-    <button className={active ? "active" : ""} onClick={onClick}>
+    <button className={active ? "active" : ""} onClick={onClick} title={label}>
       <Icon size={16} strokeWidth={1.8} />
       <span>{label}</span>
     </button>
@@ -696,13 +701,14 @@ function MoldsView({ onTest }: { onTest: (mold: MoldSummary) => void }) {
   const [inspections, setInspections] = useState<ResourceRecord[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [newMoldName, setNewMoldName] = useState("");
-  const [okFiles, setOkFiles] = useState<File[]>([]);
-  const [faultFiles, setFaultFiles] = useState<File[]>([]);
-  const [testFile, setTestFile] = useState<File | null>(null);
-  const [testResult, setTestResult] = useState<InspectionResult | null>(null);
+  const [query, setQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"recent" | "action" | "created" | "name">("recent");
   const [drafts, setDrafts] = useState<MoldDrafts>(() => loadMoldDrafts());
   const [editingName, setEditingName] = useState("");
   const [editing, setEditing] = useState(false);
+  const [annotationMoldName, setAnnotationMoldName] = useState("");
+  const [annotationOpen, setAnnotationOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -711,9 +717,27 @@ function MoldsView({ onTest }: { onTest: (mold: MoldSummary) => void }) {
       .filter((mold) => !drafts.deleted.includes(mold.id))
       .map((mold) => ({ ...mold, name: drafts.names[mold.id] || mold.name }));
   }, [recipes, datasets, candidates, jobs, inspections, drafts]);
+  const visibleMolds = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const filtered = molds.filter((mold) => {
+      if (!normalizedQuery) return true;
+      return `${mold.name} ${mold.family} ${mold.zoneId} ${moldStatusLabel(mold.status)}`.toLowerCase().includes(normalizedQuery);
+    });
+    return [...filtered].sort((left, right) => {
+      if (sortBy === "name") return left.name.localeCompare(right.name, "es");
+      if (sortBy === "created") return dateRank(right.createdAt) - dateRank(left.createdAt);
+      if (sortBy === "action") return dateRank(right.lastActionAt || right.lastInspection || right.lastTraining || right.createdAt) - dateRank(left.lastActionAt || left.lastInspection || left.lastTraining || left.createdAt);
+      return dateRank(right.lastInspection || right.lastActionAt || right.createdAt) - dateRank(left.lastInspection || left.lastActionAt || left.createdAt);
+    });
+  }, [molds, query, sortBy]);
   const selectedMold = molds.find((mold) => mold.id === selectedId) || molds[0] || null;
-  const testPreviewUrl = useMemo(() => (testFile ? URL.createObjectURL(testFile) : ""), [testFile]);
-
+  const selectedReadings = useMemo(() => {
+    if (!selectedMold) return [];
+    return inspectionSources(inspections)
+      .filter((inspection) => inspection.family === selectedMold.family && inspection.zoneId === selectedMold.zoneId)
+      .sort((left, right) => Date.parse(right.createdAt || "") - Date.parse(left.createdAt || ""));
+  }, [inspections, selectedMold]);
+  const selectedReadingStats = useMemo(() => readingStats(selectedReadings), [selectedReadings]);
   useEffect(() => {
     void refresh();
   }, []);
@@ -725,6 +749,12 @@ function MoldsView({ onTest }: { onTest: (mold: MoldSummary) => void }) {
   useEffect(() => {
     if (selectedMold && !editing) setEditingName(selectedMold.name);
   }, [selectedMold, editing]);
+
+  useEffect(() => {
+    document.body.classList.toggle("annotation-modal-open", annotationOpen);
+    if (annotationOpen) window.scrollTo(0, 0);
+    return () => document.body.classList.remove("annotation-modal-open");
+  }, [annotationOpen]);
 
   async function refresh() {
     setLoading(true);
@@ -749,33 +779,9 @@ function MoldsView({ onTest }: { onTest: (mold: MoldSummary) => void }) {
     }
   }
 
-  async function registerMold() {
-    const name = newMoldName.trim();
-    if (!name) {
-      setError("Escribe un nombre para el molde.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const family = slugFromName(name);
-      const moldId = `${family}:${DEFAULT_ZONES[0].id}`;
-      const recipe = await postJson("/v1/recipes", {
-        family,
-        zone_id: DEFAULT_ZONES[0].id,
-        name,
-        objective: "presence_absence"
-      });
-      await insertSupabase("recipes", recipe as Record<string, unknown>);
-      saveMoldDrafts({ names: { ...drafts.names, [moldId]: name }, deleted: drafts.deleted.filter((id) => id !== moldId) });
-      setDrafts(loadMoldDrafts());
-      setNewMoldName("");
-      await refresh();
-      setSelectedId(moldId);
-    } catch (saveError) {
-      setError(messageFrom(saveError));
-      setLoading(false);
-    }
+  function openAnnotation(mold?: MoldSummary | null) {
+    setAnnotationMoldName(mold?.name || newMoldName.trim() || "Nuevo molde");
+    setAnnotationOpen(true);
   }
 
   async function updateMoldName(mold: MoldSummary) {
@@ -817,417 +823,210 @@ function MoldsView({ onTest }: { onTest: (mold: MoldSummary) => void }) {
     }
   }
 
-  async function saveDataset(mold: MoldSummary) {
-    if (!okFiles.length || !faultFiles.length) {
-      setError("Sube fotos correctas y fotos con pieza faltante antes de guardar el dataset.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const [okImageUris, faultImageUris] = await Promise.all([
-        uploadFiles(okFiles, mold.family, mold.zoneId, "dataset"),
-        uploadFiles(faultFiles, mold.family, mold.zoneId, "dataset")
-      ]);
-      const dataset = await postJson("/v1/datasets/from-examples", {
-        name: `Dataset ${mold.name}`,
-        family: mold.family,
-        zone_id: mold.zoneId,
-        ok_image_uris: okImageUris,
-        fault_image_uris: faultImageUris,
-        mask: { type: "auto" }
-      });
-      await insertSupabase("datasets", dataset as Record<string, unknown>);
-      setOkFiles([]);
-      setFaultFiles([]);
-      await refresh();
-    } catch (saveError) {
-      setError(messageFrom(saveError));
-      setLoading(false);
-    }
-  }
-
-  async function generateModel(mold: MoldSummary) {
-    if (!mold.datasetId) {
-      setError("Primero sube el dataset del molde.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const job = await postJson("/v1/inspector-training-jobs", {
-        family: mold.family,
-        zone_id: mold.zoneId,
-        dataset_id: mold.datasetId,
-        target: "cloud-gpu"
-      });
-      await insertSupabase("inspector_training_jobs", job as Record<string, unknown>);
-      await refresh();
-    } catch (trainingError) {
-      setError(messageFrom(trainingError));
-      setLoading(false);
-    }
-  }
-
-  async function testMold(mold: MoldSummary) {
-    if (!testFile) {
-      setError("Sube una foto para probar el modelo.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    setTestResult(null);
-    try {
-      const imageUri = await uploadSystemFile(testFile, mold.family, mold.zoneId, "inspection");
-      const inspection = (await postJson("/v1/inspections", {
-        family: mold.family,
-        zone_id: mold.zoneId,
-        mold_id: mold.id,
-        session_id: null,
-        image_uri: imageUri,
-        capture_metadata: { source: "mold_test" }
-      })) as InspectionResult;
-      await insertSupabase("inspections", { ...toPlainRecord(inspection), image_uri: imageUri, family: mold.family, zone_id: mold.zoneId, mold_id: mold.id });
-      setTestResult(inspection);
-      await refresh();
-    } catch (inspectionError) {
-      setError(messageFrom(inspectionError));
-    } finally {
-      setLoading(false);
-    }
-  }
-
   return (
     <>
-      <header className="topbar">
+      <header className="topbar moldsTopbar">
         <div>
           <h1>Moldes</h1>
-          <p>Administra datasets, entrenamiento y pruebas desde un solo lugar.</p>
+          <p>Gestiona moldes, revisa su estado y entra al flujo de anotación.</p>
         </div>
-        <button className="primary" onClick={refresh} disabled={loading}>Actualizar</button>
+        <div className="moldsTopActions">
+          <input value={newMoldName} onChange={(event) => setNewMoldName(event.target.value)} placeholder="Nombre nuevo molde" />
+          <button className="primary" onClick={() => openAnnotation(null)} disabled={loading}>Nuevo molde</button>
+          <button className="secondary" onClick={refresh} disabled={loading}>Actualizar</button>
+        </div>
       </header>
-
-      <section className="moldRegister">
-        <div>
-          <strong>Registrar nuevo molde</strong>
-          <span>Asigna un nombre, carga ejemplos y genera el modelo de IA.</span>
-        </div>
-        <input value={newMoldName} onChange={(event) => setNewMoldName(event.target.value)} placeholder="Nombre del molde" />
-        <button className="primary" onClick={registerMold} disabled={loading}>Registrar nuevo molde</button>
-      </section>
 
       {error ? <p className="errorText inlineError">{error}</p> : null}
 
-      <section className="moldsWorkspace">
-        <aside className="moldList">
-          {molds.length ? molds.map((mold) => (
-            <button key={mold.id} className={selectedMold?.id === mold.id ? "moldRow active" : "moldRow"} onClick={() => setSelectedId(mold.id)}>
-              <span>
+      <section className="moldsToolbar">
+        <label className="moldSearchBox">
+          <Search size={14} />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar molde, familia o zona" />
+        </label>
+        <label>Orden
+          <select value={sortBy} onChange={(event) => setSortBy(event.target.value as "recent" | "action" | "created" | "name")}>
+            <option value="recent">Más recientes</option>
+            <option value="action">Última acción</option>
+            <option value="created">Fecha de creación</option>
+            <option value="name">Nombre</option>
+          </select>
+        </label>
+        <span>{visibleMolds.length} moldes</span>
+      </section>
+
+      <section className="moldsBoard">
+        <div className="moldsCardGrid">
+          {visibleMolds.length ? visibleMolds.map((mold) => (
+            <button
+              key={mold.id}
+              className={selectedMold?.id === mold.id ? "moldDocCard active" : "moldDocCard"}
+              onClick={() => setSelectedId(mold.id)}
+              onDoubleClick={() => { setSelectedId(mold.id); setDetailOpen(true); }}
+              type="button"
+            >
+              <div className="moldDocPreview">
+                <span className="moldDocMark">MV</span>
+                <div className="moldPreviewLines">
+                  <i /><i /><i /><i /><i />
+                </div>
+                <span className={`moldState ${mold.status}`}>{moldStatusLabel(mold.status)}</span>
+              </div>
+              <div className="moldDocFooter">
                 <strong>{mold.name}</strong>
-                <small>{mold.lastInspection ? `Última inspección ${formatDate(mold.lastInspection)}` : "Sin inspecciones"}</small>
-              </span>
-              <i className={`moldState ${mold.status}`}>{moldStatusLabel(mold.status)}</i>
+                <span>{mold.lastInspection ? `Última inspección ${formatDate(mold.lastInspection)}` : "Sin inspecciones"}</span>
+              </div>
             </button>
           )) : (
+            <div className="emptyMolds moldDocEmpty">
+              <strong>{molds.length ? "Sin resultados" : "Sin moldes registrados"}</strong>
+              <span>{molds.length ? "Ajusta la búsqueda o el orden." : "Crea el primer molde para configurar secciones y vistas."}</span>
+              <button className="primary" type="button" onClick={() => openAnnotation(null)}>Nuevo molde</button>
+            </div>
+          )}
+        </div>
+
+        <aside className="moldInfoPanel">
+          {selectedMold ? (
+            <>
+              <div className="moldInfoHeader">
+                <span className={`status ${statusClassForMold(selectedMold.status)}`}>{moldStatusLabel(selectedMold.status)}</span>
+                {editing ? (
+                  <div className="editMoldName">
+                    <input value={editingName} onChange={(event) => setEditingName(event.target.value)} aria-label="Nombre del molde" />
+                    <button className="primary" onClick={() => updateMoldName(selectedMold)} disabled={loading}>Guardar</button>
+                    <button className="secondary" onClick={() => setEditing(false)}>Cancelar</button>
+                  </div>
+                ) : <h2>{selectedMold.name}</h2>}
+                <p>{selectedMold.lastInspection ? `Última lectura ${formatDate(selectedMold.lastInspection)}` : "Sin lecturas todavía."}</p>
+              </div>
+
+              <div className="moldInfoMetrics">
+                <Metric label="Lecturas" value={String(selectedReadingStats.total)} />
+                <Metric label="Error" value={formatPercent(selectedReadingStats.errorRate)} />
+                <Metric label="Retoma" value={formatPercent(selectedReadingStats.retakeRate)} />
+              </div>
+
+              <div className="moldInfoActions">
+                <button className="primary" type="button" onClick={() => openAnnotation(selectedMold)}>Anotar</button>
+                <button className="secondary" onClick={() => onTest(selectedMold)}>Capturar foto</button>
+                <button className="secondary" onClick={() => setDetailOpen(true)}>Ver datos</button>
+                <button className="secondary" onClick={() => { setEditingName(selectedMold.name); setEditing(true); }}>Editar</button>
+                <button className="dangerButton" onClick={() => deleteMold(selectedMold)}>Borrar</button>
+              </div>
+
+              <section className="moldInfoBlock moldReadingsBlock">
+                <strong>Últimas lecturas</strong>
+                {selectedReadings.length ? selectedReadings.slice(0, 5).map((reading) => (
+                  <article key={reading.id} className="readingRow">
+                    <span className={`dot ${reading.status}`} />
+                    <div>
+                      <b>{statusLabel(reading.status)}</b>
+                      <small>{reading.createdAt ? formatDate(reading.createdAt) : "Sin fecha"}</small>
+                    </div>
+                    <em>{reading.missingCount} falt.</em>
+                  </article>
+                )) : <span>Sin lecturas registradas.</span>}
+              </section>
+            </>
+          ) : (
             <div className="emptyMolds">
-              <strong>Sin moldes registrados</strong>
-              <span>Registra el primer molde para comenzar.</span>
+              <strong>Selecciona un molde</strong>
+              <span>La información aparecerá aquí.</span>
             </div>
           )}
         </aside>
-
-        <section className="moldDetail">
-          {selectedMold ? (
-            <>
-              <div className="moldHero">
-                <div>
-                  <span className={`status ${statusClassForMold(selectedMold.status)}`}>{moldStatusLabel(selectedMold.status)}</span>
-                  {editing ? (
-                    <div className="editMoldName">
-                      <input value={editingName} onChange={(event) => setEditingName(event.target.value)} aria-label="Nombre del molde" />
-                      <button className="primary" onClick={() => updateMoldName(selectedMold)} disabled={loading}>Guardar</button>
-                      <button className="secondary" onClick={() => setEditing(false)}>Cancelar</button>
-                    </div>
-                  ) : <h2>{selectedMold.name}</h2>}
-                  <p>{selectedMold.lastTraining ? `Último entrenamiento ${formatDate(selectedMold.lastTraining)}` : "Sin entrenamiento generado todavía."}</p>
-                </div>
-                <div className="heroActions">
-                  <button className="secondary" onClick={() => { setEditingName(selectedMold.name); setEditing(true); }}>Editar</button>
-                  <button className="dangerButton" onClick={() => deleteMold(selectedMold)}>Borrar</button>
-                  <button className="secondary" onClick={() => onTest(selectedMold)}>Capturar foto</button>
-                </div>
-              </div>
-
-              <div className="userMetrics">
-                <Metric label="Fotos de entrenamiento" value={String(selectedMold.okCount + selectedMold.faultCount)} />
-                <Metric label="Confianza promedio" value={formatPercent(selectedMold.confidence)} />
-                <Metric label="Riesgo falso aprobado" value={formatRisk(selectedMold.falsePassRate)} />
-                <Metric label="Piezas verificadas" value={selectedMold.pieceCount ? String(selectedMold.pieceCount) : "Pendiente"} />
-              </div>
-
-              <div className="chartsGrid">
-                <section className="panel chartPanel">
-                  <strong>Progreso del modelo</strong>
-                  <ProgressSteps mold={selectedMold} />
-                </section>
-                <section className="panel chartPanel">
-                  <strong>Calidad entendible</strong>
-                  <QualityBars mold={selectedMold} />
-                </section>
-              </div>
-
-              <div className="moldActionGrid">
-                <section className="panel uploadPanel">
-                  <div className="captureHeader">
-                    <strong>Dataset del molde</strong>
-                    <span>{selectedMold.okCount} correctas / {selectedMold.faultCount} faltantes</span>
-                  </div>
-                  <div className="uploadColumns">
-                    <FilePicker label="Fotos correctas" detail="Molde completo" count={okFiles.length} multiple onChange={setOkFiles} />
-                    <FilePicker label="Fotos con pieza faltante" detail="Molde incompleto" count={faultFiles.length} multiple onChange={setFaultFiles} />
-                  </div>
-                  <button className="primary fullWidth" onClick={() => saveDataset(selectedMold)} disabled={loading}>Guardar dataset</button>
-                </section>
-
-                <section className="panel uploadPanel">
-                  <div className="captureHeader">
-                    <strong>Modelo de IA</strong>
-                    <span>{selectedMold.datasetId ? "Dataset listo" : "Falta dataset"}</span>
-                  </div>
-                  <p className="fieldNote">El sistema entrena candidatos y conserva automáticamente el de mejor desempeño.</p>
-                  <button className="primary fullWidth" onClick={() => generateModel(selectedMold)} disabled={loading}>Generar modelo de IA</button>
-                </section>
-              </div>
-
-              <section className="panel testPanel">
-                <div className="captureHeader">
-                  <strong>Probar modelo</strong>
-                  <span>Sube una foto y revisa el resultado</span>
-                </div>
-                <div className="testGrid">
-                  <div className="testControls">
-                    <FilePicker label="Subir foto de prueba" detail="Imagen individual" count={testFile ? 1 : 0} onChange={(files) => setTestFile(files[0] ?? null)} />
-                    <button className="primary" onClick={() => testMold(selectedMold)} disabled={loading || !testFile}>Revisar resultado</button>
-                  </div>
-                  {testResult ? (
-                    <>
-                      <EvaluationImage imageUrl={inspectionImageUrl(testResult) || testPreviewUrl} missingPolygons={missingPiecePolygons(testResult)} />
-                      <div className="resultCopy">
-                        <span className={`resultBadge ${testResult.status}`}>{statusLabel(testResult.status)}</span>
-                        <strong>{testResult.message}</strong>
-                        <p>{missingPiecePolygons(testResult).length ? "Se marcaron regiones faltantes en rojo." : "Sin regiones faltantes detectadas."}</p>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="pendingResult">
-                      <strong>Sin análisis todavía</strong>
-                      <p>El resultado aparecerá solo después de revisar una foto.</p>
-                    </div>
-                  )}
-                </div>
-              </section>
-            </>
-          ) : null}
-        </section>
       </section>
-    </>
-  );
-}
 
-function SegmenterTrainingView() {
-  const [name, setName] = useState("Detector de contorno del molde");
-  const [files, setFiles] = useState<File[]>([]);
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const [polygon, setPolygon] = useState<Point[]>(DEFAULT_SEGMENTER_POLYGON);
-  const [draggingPoint, setDraggingPoint] = useState<number | null>(null);
-  const [datasets, setDatasets] = useState<ResourceRecord[]>([]);
-  const [jobs, setJobs] = useState<ResourceRecord[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const editorRef = useRef<HTMLDivElement | null>(null);
-  const selectedFile = files[selectedIndex] || files[0] || null;
-  const previewUrl = useMemo(() => (selectedFile ? URL.createObjectURL(selectedFile) : ""), [selectedFile]);
-
-  useEffect(() => {
-    void refresh();
-  }, []);
-
-  async function refresh() {
-    setLoading(true);
-    setError("");
-    try {
-      const [loadedDatasets, loadedJobs] = await Promise.all([
-        loadRecords("segmenter_datasets", "/v1/segmenter_datasets"),
-        loadRecords("segmenter_training_jobs", "/v1/segmenter_training_jobs")
-      ]);
-      setDatasets(loadedDatasets);
-      setJobs(loadedJobs);
-    } catch (loadError) {
-      setError(messageFrom(loadError));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function createDataset() {
-    if (!files.length) {
-      setError("Sube al menos una foto del molde con el contorno marcado.");
-      return;
-    }
-    if (polygon.length < 3) {
-      setError("Marca al menos tres puntos para formar el polígono del molde.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const imageUris = await uploadFiles(files, "generic_mold", "segmenter", "segmenter");
-      const dataset = await postJson("/v1/segmenter-datasets/from-annotations", {
-        name,
-        annotations: imageUris.map((imageUri, index) => ({
-          image_uri: imageUri,
-          split: index === 1 ? "val" : "train",
-          polygon
-        }))
-      });
-      await insertSupabase("segmenter_datasets", dataset as Record<string, unknown>);
-      setFiles([]);
-      await refresh();
-    } catch (saveError) {
-      setError(messageFrom(saveError));
-      setLoading(false);
-    }
-  }
-
-  function pointFromPointer(event: React.PointerEvent<HTMLElement>) {
-    const rect = editorRef.current?.getBoundingClientRect();
-    if (!rect) return { x: 0.5, y: 0.5 };
-    return {
-      x: clamp((event.clientX - rect.left) / rect.width, 0, 1),
-      y: clamp((event.clientY - rect.top) / rect.height, 0, 1)
-    };
-  }
-
-  function addPolygonPoint(event: React.PointerEvent<HTMLDivElement>) {
-    if (draggingPoint !== null) return;
-    const point = pointFromPointer(event);
-    setPolygon((current) => insertPointInClosestSegment(current, point));
-  }
-
-  function movePolygonPoint(event: React.PointerEvent<HTMLDivElement>) {
-    if (draggingPoint === null) return;
-    const point = pointFromPointer(event);
-    setPolygon((current) => current.map((existing, index) => index === draggingPoint ? point : existing));
-  }
-
-  function removeLastPoint() {
-    setPolygon((current) => current.length > 3 ? current.slice(0, -1) : current);
-  }
-
-  async function trainLatest() {
-    const dataset = datasets[0];
-    if (!dataset) {
-      setError("Primero guarda fotos con el contorno del molde.");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const job = await postJson("/v1/segmenter-training-jobs", { dataset_id: String(dataset.id), epochs: 50, image_size: 640 });
-      await insertSupabase("segmenter_training_jobs", job as Record<string, unknown>);
-      await refresh();
-    } catch (trainError) {
-      setError(messageFrom(trainError));
-      setLoading(false);
-    }
-  }
-
-  return (
-    <>
-      <header className="topbar">
-        <div>
-          <h1>Guía de cámara</h1>
-          <p>Entrena la red que detecta el contorno del molde y guía al usuario al tomar la foto.</p>
+      {annotationOpen ? (
+        <div className="annotationModalHost" role="dialog" aria-modal="true">
+          <AnnotateApp initialMoldName={annotationMoldName} onExit={() => setAnnotationOpen(false)} />
         </div>
-        <button className="primary" onClick={refresh} disabled={loading}>Actualizar</button>
-      </header>
-
-      {error ? <p className="errorText inlineError">{error}</p> : null}
-
-      <section className="segmenterWorkspace">
-        <aside className="panel segmenterSetup">
-          <label>Nombre del entrenamiento
-            <input value={name} onChange={(event) => setName(event.target.value)} />
-          </label>
-          <FilePicker label="Fotos del molde" detail="Marca el contorno en la vista previa" count={files.length} multiple onChange={setFiles} />
-          {files.length ? (
-            <label>Foto activa
-              <select value={selectedIndex} onChange={(event) => setSelectedIndex(Number(event.target.value))}>
-                {files.map((file, index) => <option key={`${file.name}-${index}`} value={index}>{file.name}</option>)}
-              </select>
-            </label>
-          ) : null}
-          <button className="primary fullWidth" onClick={createDataset} disabled={loading}>Guardar contornos</button>
-          <button className="secondary fullWidth" onClick={trainLatest} disabled={loading}>Entrenar guía de cámara</button>
-        </aside>
-
-        <section className="panel polygonEditor">
-          <div className="captureHeader">
-            <strong>Contorno del molde</strong>
-            <span>Haz clic para agregar puntos. Arrastra los vértices para ajustar.</span>
-          </div>
-          <div
-            ref={editorRef}
-            className="maskPreview polygonCanvas"
-            onPointerDown={addPolygonPoint}
-            onPointerMove={movePolygonPoint}
-            onPointerUp={() => setDraggingPoint(null)}
-            onPointerCancel={() => setDraggingPoint(null)}
-            onPointerLeave={() => setDraggingPoint(null)}
-          >
-            {previewUrl ? <img src={previewUrl} alt="Molde anotado" /> : <span>Sube una foto y ajusta el contorno del molde</span>}
-            <svg className="polygonOverlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-              <polygon points={polygonPoints(polygon)} />
-              <polyline points={`${polygonPoints(polygon)} ${polygon[0].x * 100},${polygon[0].y * 100}`} />
-              {polygon.map((point, index) => (
-                <circle
-                  key={`${point.x}-${point.y}-${index}`}
-                  cx={point.x * 100}
-                  cy={point.y * 100}
-                  r="1.9"
-                  onPointerDown={(event) => {
-                    event.stopPropagation();
-                    setDraggingPoint(index);
-                  }}
-                />
-              ))}
-            </svg>
-            <div className="frame"><i /><i /><i /><i /></div>
-          </div>
-          <div className="polygonToolbar">
-            <span>{polygon.length} puntos</span>
-            <button className="secondary" type="button" onClick={removeLastPoint} disabled={polygon.length <= 3}>Deshacer punto</button>
-            <button className="secondary" type="button" onClick={() => setPolygon(DEFAULT_SEGMENTER_POLYGON)}>Reiniciar polígono</button>
-          </div>
-        </section>
-
-        <aside className="panel trainingStatus">
-          <strong>Estado</strong>
-          <Metric label="Fotos con contorno" value={String(datasets.reduce((total, item) => total + Number(recordString(item, "image_count") || 0), 0))} />
-          <Metric label="Entrenamientos" value={String(jobs.length)} />
-          <Metric label="Último estado" value={jobs[0] ? titleFromSlug(recordString(jobs[0], "status") || "Registrado") : "Sin entrenamiento"} />
-        </aside>
-      </section>
+      ) : null}
+      {detailOpen && selectedMold ? (
+        <MoldDetailDrawer mold={selectedMold} readings={selectedReadings} stats={selectedReadingStats} onClose={() => setDetailOpen(false)} />
+      ) : null}
     </>
   );
 }
 
-function MoldQuickSelect({ family, zoneId, onSelect }: { family: string; zoneId: string; onSelect: (mold: MoldSummary) => void }) {
+function MoldDetailDrawer({
+  mold,
+  readings,
+  stats,
+  onClose
+}: {
+  mold: MoldSummary;
+  readings: NormalizedInspection[];
+  stats: ReturnType<typeof readingStats>;
+  onClose: () => void;
+}) {
+  return (
+    <div className="moldDetailOverlay" role="dialog" aria-modal="true">
+      <aside className="moldDetailDrawer">
+        <header>
+          <div>
+            <span className={`status ${statusClassForMold(mold.status)}`}>{moldStatusLabel(mold.status)}</span>
+            <h2>{mold.name}</h2>
+            <p>{mold.family} / {mold.zoneId}</p>
+          </div>
+          <button className="secondary" type="button" onClick={onClose}>Cerrar</button>
+        </header>
+
+        <div className="moldDetailMetrics">
+          <Metric label="Lecturas" value={String(stats.total)} />
+          <Metric label="Correctas" value={String(stats.correct)} />
+          <Metric label="Revisión" value={String(stats.review)} />
+          <Metric label="Retomas" value={String(stats.retake)} />
+          <Metric label="Error" value={formatPercent(stats.errorRate)} />
+          <Metric label="Piezas faltantes" value={String(stats.missingPieces)} />
+        </div>
+
+        <section className="moldInfoBlock">
+          <strong>Datos clave</strong>
+          <div className="keyDataGrid">
+            <span><b>Confianza</b>{formatPercent(mold.confidence)}</span>
+            <span><b>False pass</b>{formatPercent(mold.falsePassRate)}</span>
+            <span><b>Último training</b>{mold.lastTraining ? formatDate(mold.lastTraining) : "-"}</span>
+            <span><b>Última lectura</b>{mold.lastInspection ? formatDate(mold.lastInspection) : "-"}</span>
+          </div>
+        </section>
+
+        <section className="moldInfoBlock">
+          <strong>Histórico reciente</strong>
+          <div className="readingHistory">
+            {readings.length ? readings.slice(0, 12).map((reading) => (
+              <article key={reading.id} className="readingRow detailed">
+                <span className={`dot ${reading.status}`} />
+                <div>
+                  <b>{statusLabel(reading.status)}</b>
+                  <small>{reading.message || "Lectura registrada"}</small>
+                </div>
+                <time>{reading.createdAt ? formatDate(reading.createdAt) : "-"}</time>
+                <em>{reading.missingCount} falt.</em>
+              </article>
+            )) : <span className="emptyText compact">Sin lecturas para este molde.</span>}
+          </div>
+        </section>
+      </aside>
+    </div>
+  );
+}
+
+function CaptureMoldSearch({
+  selectedMold,
+  onSelect,
+  fallbackFamily,
+  fallbackZoneId
+}: {
+  selectedMold: MoldSummary | null;
+  onSelect: (mold: MoldSummary) => void;
+  fallbackFamily: string;
+  fallbackZoneId: string;
+}) {
   const [molds, setMolds] = useState<MoldSummary[]>([]);
-  const selectedValue = useMemo(() => {
-    const exactId = `${family}:${zoneId}`;
-    return molds.some((mold) => mold.id === exactId) ? exactId : (molds.find((mold) => mold.family === family)?.id || exactId);
-  }, [family, zoneId, molds]);
+  const [query, setQuery] = useState("");
+  const [focused, setFocused] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -1243,70 +1042,147 @@ function MoldQuickSelect({ family, zoneId, onSelect }: { family: string; zoneId:
     void load();
   }, []);
 
+  useEffect(() => {
+    if (selectedMold) setQuery(selectedMold.name);
+  }, [selectedMold]);
+
+  const visibleMolds = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    const matched = normalized
+      ? molds.filter((mold) => `${mold.name} ${mold.family} ${mold.zoneId}`.toLowerCase().includes(normalized))
+      : molds;
+    return matched.slice(0, 8);
+  }, [molds, query]);
+
+  function selectFirstMatch() {
+    const first = visibleMolds[0] || molds[0] || {
+      id: `${fallbackFamily}:${fallbackZoneId}`,
+      name: titleFromSlug(fallbackFamily),
+      family: fallbackFamily,
+      zoneId: fallbackZoneId,
+      status: "needs_data" as MoldSummary["status"],
+      okCount: 0,
+      faultCount: 0,
+      pieceCount: 0,
+      confidence: null,
+      falsePassRate: null
+    };
+    onSelect(first);
+    setFocused(false);
+  }
+
   return (
-    <section className="captureMoldSelect">
-      <label>Molde
-        <select value={selectedValue} onChange={(event) => {
-          const mold = molds.find((item) => item.id === event.target.value);
-          if (mold) onSelect(mold);
-        }}>
-          {molds.length ? molds.map((mold) => <option key={mold.id} value={mold.id}>{mold.name}</option>) : <option value={`${family}:${zoneId}`}>Molde demo</option>}
-        </select>
-      </label>
+    <section className="captureSearchOnly">
+      <div className="captureSearchBox">
+        <Search size={18} />
+        <input
+          value={query}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setFocused(true);
+          }}
+          onFocus={() => setFocused(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") selectFirstMatch();
+            if (event.key === "Escape") setFocused(false);
+          }}
+          placeholder="Buscar molde"
+          aria-label="Buscar molde"
+        />
+      </div>
+      {focused ? (
+        <div className="captureSearchResults">
+          {visibleMolds.length ? visibleMolds.map((mold) => (
+            <button key={mold.id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => { onSelect(mold); setFocused(false); }}>
+              <strong>{mold.name}</strong>
+              <span>{mold.family} / {mold.zoneId}</span>
+            </button>
+          )) : (
+            <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={selectFirstMatch}>
+              <strong>{titleFromSlug(fallbackFamily)}</strong>
+              <span>{fallbackFamily} / {fallbackZoneId}</span>
+            </button>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }
 
-function HistoryView() {
-  const [records, setRecords] = useState<ResourceRecord[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+function MoldCaptureZones({
+  mold,
+  sections,
+  activeSectionId,
+  sectionResults,
+  validationSession,
+  disabled,
+  onSelectSection,
+  onCapture
+}: {
+  mold: MoldSummary;
+  sections: MoldSection[];
+  activeSectionId: string;
+  sectionResults: Record<string, SectionResult>;
+  validationSession: MoldValidationSession | null;
+  disabled: boolean;
+  onSelectSection: (section: MoldSection) => void;
+  onCapture: (section: MoldSection) => void;
+}) {
+  const [pieceCounts, setPieceCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    async function refresh() {
-      setLoading(true);
-      setError("");
-      try {
-        setRecords(await loadRecords("inspections", "/v1/inspections"));
-      } catch (loadError) {
-        setError(messageFrom(loadError));
-      } finally {
-        setLoading(false);
-      }
+    let cancelled = false;
+    async function loadCounts() {
+      const entries = await Promise.all(sections.map(async (section) => {
+        const context = await loadCaptureContext(mold.family, section.zoneId).catch(() => ({ expected: [] as ExpectedPiece[] }));
+        const count = context.expected.length || defaultExpectedPieces().length;
+        return [section.id, count] as const;
+      }));
+      if (!cancelled) setPieceCounts(Object.fromEntries(entries));
     }
-    void refresh();
-  }, []);
+    void loadCounts();
+    return () => { cancelled = true; };
+  }, [mold.family, mold.id, sections]);
+
+  const completedSections = validationSession?.completed_count ?? sections.filter((section) => {
+    const state = sectionResults[section.id]?.status;
+    return state === "correct" || state === "review";
+  }).length;
 
   return (
-    <>
-      <header className="topbar">
+    <section className="captureZones">
+      <div className="captureZonesHeader">
         <div>
-          <h1>Historial</h1>
-          <p>Últimas inspecciones y resultados operativos.</p>
+          <span>Molde</span>
+          <strong>{mold.name}</strong>
+          <small>{completedSections}/{sections.length || 1} zonas listas</small>
         </div>
-      </header>
-      <section className="historyList">
-        {loading ? <p className="emptyText">Cargando historial...</p> : null}
-        {error ? <p className="errorText">{error}</p> : null}
-        {!loading && !records.length ? <p className="emptyText">Sin inspecciones todavía.</p> : null}
-        {records.map((record) => {
-          const source = recordSource(record);
-          const result = source.result as InspectionResult["result"] | undefined;
-          const missing = Number(result?.piece_inspection?.missing_count || 0);
+        <span className={`status ${statusClassForMold(mold.status)}`}>{moldStatusLabel(mold.status)}</span>
+      </div>
+      <div className="captureZoneGrid">
+        {sections.map((section) => {
+          const result = sectionResults[section.id];
+          const isActive = section.id === activeSectionId;
           return (
-            <article className="historyRow" key={String(source.id || record.id)}>
-              <span className={`resultBadge ${String(source.status || "idle")}`}>{statusLabel(String(source.status || "idle") as InspectionStatus)}</span>
-              <div>
-                <strong>{String(source.message || "Inspección registrada")}</strong>
-                <small>{formatDate(String(source.created_at || record.created_at || ""))}</small>
-              </div>
-              <b>{missing} faltantes</b>
+            <article key={section.id} className={isActive ? "captureZoneCard active" : "captureZoneCard"}>
+              <button type="button" className="captureZoneBody" onClick={() => onSelectSection(section)}>
+                <span>{section.label}</span>
+                <strong>{(pieceCounts[section.id] ?? mold.pieceCount) || defaultExpectedPieces().length} piezas</strong>
+                <small>{result ? statusLabel(result.status) : "pendiente"}</small>
+              </button>
+              <button className="primary" type="button" disabled={disabled} onClick={() => onCapture(section)}>
+                Capturar
+              </button>
             </article>
           );
         })}
-      </section>
-    </>
+      </div>
+    </section>
   );
+}
+
+function MoldQuickSelect({ family, zoneId, onSelect }: { family: string; zoneId: string; onSelect: (mold: MoldSummary) => void }) {
+  return <CaptureMoldSearch selectedMold={null} onSelect={onSelect} fallbackFamily={family} fallbackZoneId={zoneId} />;
 }
 
 function LeadershipDashboard() {
@@ -2668,6 +2544,7 @@ function CameraCapture({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const focusMaskId = useRef(`zone-focus-${Math.random().toString(36).slice(2)}`);
   const guidancePending = useRef(false);
   const stableReadyFrames = useRef(0);
   const autoCapturePending = useRef(false);
@@ -2688,6 +2565,16 @@ function CameraCapture({
   }, [fullscreen]);
 
   useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!active || !video || !stream) return;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+    }
+    void video.play().catch((error) => setCameraError(cameraErrorMessage(error)));
+  }, [active]);
+
+  useEffect(() => {
     if (!active) return;
     const timer = window.setInterval(() => {
       void requestGuidance();
@@ -2697,11 +2584,12 @@ function CameraCapture({
 
   async function startCamera() {
     setCameraError("");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Cámara no disponible en este navegador.");
+      return;
+    }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false
-      });
+      const stream = await openCameraStream();
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -2709,8 +2597,25 @@ function CameraCapture({
       }
       setActive(true);
     } catch (error) {
-      setCameraError(messageFrom(error));
+      setCameraError(cameraErrorMessage(error));
     }
+  }
+
+  async function openCameraStream() {
+    const attempts: MediaStreamConstraints[] = [
+      { video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false },
+      { video: { facingMode: "environment" }, audio: false },
+      { video: true, audio: false }
+    ];
+    let lastError: unknown = null;
+    for (const constraints of attempts) {
+      try {
+        return await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError;
   }
 
   function stop() {
@@ -2773,19 +2678,63 @@ function CameraCapture({
     return blob ? new File([blob], filename, { type: "image/jpeg" }) : null;
   }
 
-  const blockedByGuidance = active && (!guidance || !guidance.ok);
+  const blockedByGuidance = false;
   const confidence = guidance?.alignment?.mold_segmentation?.confidence;
   const livePolygon = guidance?.alignment?.mold_segmentation?.polygon_normalized;
   const guidanceItems = guidance?.guidance?.length ? guidance.guidance : ["Centra el molde dentro del marco."];
   const readiness = Math.min(3, readyFrames);
   const referenceUrl = displayUrl(reference?.image_url || reference?.image_uri || "");
   const guideRois = (expectedPieces || []).filter((piece) => Array.isArray(piece.roi) && piece.roi.length === 4).slice(0, 8);
+  const focusRects = guideRois.length ? guideRois.map((piece) => ({
+    id: piece.id,
+    roi: piece.roi as number[],
+    label: piece.name || piece.class_name
+  })) : [{ id: "main-zone", roi: [0.18, 0.18, 0.82, 0.82], label: "zona" }];
 
   const stage = (
     <div className="dropzone cameraStage">
-      {active ? <video ref={videoRef} playsInline muted /> : previewUrl ? <img src={previewUrl} alt="Vista previa" /> : <span>Toma o sube una foto de la zona</span>}
+      {active || fullscreen ? <video ref={videoRef} playsInline muted autoPlay /> : previewUrl ? <img src={previewUrl} alt="Vista previa" /> : <span>Toma o sube una foto de la zona</span>}
+      {fullscreen && cameraError ? (
+        <div className="cameraStatusOverlay" role="status">
+          <CircleAlert size={22} />
+          <strong>{cameraError}</strong>
+          <span>Revisa permiso o cámara conectada.</span>
+        </div>
+      ) : null}
       {!fullscreen ? <input type="file" accept="image/*" capture="environment" onChange={(event) => onFile(event.target.files?.[0] ?? null)} /> : null}
-      {active && referenceUrl ? <img className="referenceOverlayImage" src={referenceUrl} alt="Referencia golden sample" style={{ opacity: overlayOpacity }} /> : null}
+      {active && referenceUrl && !fullscreen ? <img className="referenceOverlayImage" src={referenceUrl} alt="Referencia golden sample" style={{ opacity: overlayOpacity }} /> : null}
+      {fullscreen ? (
+        <svg className="zoneFocusMask" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <mask id={focusMaskId.current}>
+              <rect x="0" y="0" width="100" height="100" fill="white" />
+              {focusRects.map((rect) => (
+                <rect
+                  key={rect.id}
+                  x={rect.roi[0] * 100}
+                  y={rect.roi[1] * 100}
+                  width={(rect.roi[2] - rect.roi[0]) * 100}
+                  height={(rect.roi[3] - rect.roi[1]) * 100}
+                  rx="1.2"
+                  fill="black"
+                />
+              ))}
+            </mask>
+          </defs>
+          <rect className="zoneFocusShade" x="0" y="0" width="100" height="100" mask={`url(#${focusMaskId.current})`} />
+          {focusRects.map((rect) => (
+            <rect
+              key={rect.id}
+              className="zoneFocusWindow"
+              x={rect.roi[0] * 100}
+              y={rect.roi[1] * 100}
+              width={(rect.roi[2] - rect.roi[0]) * 100}
+              height={(rect.roi[3] - rect.roi[1]) * 100}
+              rx="1.2"
+            />
+          ))}
+        </svg>
+      ) : null}
       {active && livePolygon?.length ? (
         <svg className="liveMoldPolygon" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <polygon points={polygonPoints(livePolygon)} />
@@ -2810,20 +2759,30 @@ function CameraCapture({
           </div>
           <button className="secondary" type="button" onClick={closeFullscreen}>Cancelar</button>
         </div>
-        <div className="fullscreenStageWrap">{stage}</div>
-        <label className="overlayControl">Overlay
-          <input type="range" min={20} max={75} value={Math.round(overlayOpacity * 100)} onChange={(event) => setOverlayOpacity(Number(event.target.value) / 100)} />
-        </label>
-        <div className={`fullscreenGuidance ${guidance?.ok ? "isOk" : "needsWork"}`}>
+        <div className="fullscreenCaptureGrid">
+          <div className="fullscreenStageWrap">
+            {stage}
+            <div className="cameraFloatingActions" aria-label="Acciones de captura">
+              <button className="primary captureTrigger" type="button" onClick={capturePhoto} disabled={Boolean(!active || cameraError)} aria-label="Capturar" title="Capturar">
+                <Camera size={22} />
+              </button>
+              {cameraError ? (
+                <button className="secondary retryCameraButton" type="button" onClick={startCamera}>
+                  Reintentar
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <div className={`fullscreenGuidance ${guidance?.ok ? "isOk" : cameraError ? "hasError" : "needsWork"}`}>
           <div>
-            <strong>{cameraError || guidance?.message || "Detectando molde..."}</strong>
-            <span>{typeof confidence === "number" ? `Confianza ${Math.round(confidence * 100)}%` : "Esperando detección"}</span>
+            <strong>{cameraError || guidance?.message || (active ? "Detectando molde..." : "Abriendo cámara...")}</strong>
+            <span>{typeof confidence === "number" ? `Confianza ${Math.round(confidence * 100)}%` : active ? "Cámara activa" : "Esperando cámara"}</span>
           </div>
           <div className="readinessMeter" aria-label="estabilidad">
             {[0, 1, 2].map((item) => <i key={item} className={item < readiness ? "ready" : ""} />)}
           </div>
           <ul>{guidanceItems.map((item) => <li key={item}>{item}</li>)}</ul>
-          <button className="primary" type="button" onClick={capturePhoto} disabled={Boolean(blockedByGuidance || cameraError)}>Capturar ahora</button>
         </div>
         <canvas ref={canvasRef} hidden />
       </div>
@@ -3314,22 +3273,6 @@ function timeoutValue<T>(value: T, timeoutMs: number) {
   return new Promise<T>((resolve) => window.setTimeout(() => resolve(value), timeoutMs));
 }
 
-async function uploadFiles(files: File[], family: string, zoneId: string, purpose: string) {
-  return Promise.all(files.map((file) => uploadSystemFile(file, family, zoneId, purpose)));
-}
-
-async function uploadSystemFile(file: File, family: string, zoneId: string, purpose: string) {
-  const presign = await postJson("/v1/uploads/presign", {
-    filename: file.name,
-    content_type: file.type || "application/octet-stream",
-    family,
-    zone_id: zoneId,
-    purpose
-  });
-  await fetch(resolveUrl(presign.upload_url), { method: presign.method, headers: presign.headers, body: file });
-  return presign.object_uri as string;
-}
-
 function maskPoints(mask: MaskRect) {
   return [
     { x: mask.left / 100, y: mask.top / 100 },
@@ -3344,72 +3287,12 @@ function stopCamera(streamRef: { current: MediaStream | null }) {
   streamRef.current = null;
 }
 
-function polygonPoints(points: Array<{ x: number; y: number }>) {
-  return points.map((point) => `${point.x * 100},${point.y * 100}`).join(" ");
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function insertPointInClosestSegment(points: Point[], point: Point) {
-  if (points.length < 2) return [...points, point];
-  let insertAt = points.length;
-  let bestDistance = Number.POSITIVE_INFINITY;
-  for (let index = 0; index < points.length; index += 1) {
-    const start = points[index];
-    const end = points[(index + 1) % points.length];
-    const distance = distanceToSegment(point, start, end);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      insertAt = index + 1;
-    }
-  }
-  return [...points.slice(0, insertAt), point, ...points.slice(insertAt)];
-}
-
-function distanceToSegment(point: Point, start: Point, end: Point) {
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  if (dx === 0 && dy === 0) return Math.hypot(point.x - start.x, point.y - start.y);
-  const t = clamp(((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy), 0, 1);
-  return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
-}
-
-async function postJson(path: string, body: unknown) {
-  const response = await fetch(resolveUrl(path), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
-  return response.json();
-}
-
-async function getJson(path: string) {
-  const response = await fetch(resolveUrl(path), { cache: "no-store" });
-  if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
-  return response.json();
-}
-
-function resolveUrl(path: string) {
-  return path.startsWith("http") ? path : `${API_BASE}${path}`;
-}
-
-function displayUrl(path: string) {
-  if (!path) return "";
-  if (path.startsWith("local://")) return resolveUrl(`/v1/uploads/${path.replace("local://", "")}/file`);
-  if (path.startsWith("/")) return resolveUrl(path);
-  return path;
-}
-
-function isLocalRuntime() {
-  const apiBase = API_BASE.toLowerCase();
-  const hostname = typeof window === "undefined" ? "" : window.location.hostname.toLowerCase();
-  return (
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    hostname === "::1" ||
-    apiBase.includes("localhost") ||
-    apiBase.includes("127.0.0.1") ||
-    apiBase.includes("[::1]")
-  );
+function cameraErrorMessage(error: unknown) {
+  const text = messageFrom(error);
+  if (/not found|device not found|notfound/i.test(text)) return "No se encontró una cámara disponible.";
+  if (/denied|permission|notallowed/i.test(text)) return "Permiso de cámara bloqueado.";
+  if (/constraint|overconstrained|notreadable/i.test(text)) return "No se pudo abrir la cámara.";
+  return text;
 }
 
 function makeId(prefix: string, family: string, zoneId: string) {
@@ -3437,10 +3320,6 @@ function publicRecord(record: ResourceRecord, hiddenKeys: string[]) {
 
 function toPlainRecord(record: InspectionResult) {
   return { id: record.id, status: record.status, message: record.message, result: record.result, evidence: record.evidence };
-}
-
-function messageFrom(error: unknown) {
-  return error instanceof Error ? error.message : "Error inesperado.";
 }
 
 function statusLabel(status: InspectionStatus) {
@@ -3490,6 +3369,22 @@ function inspectionSources(inspections: ResourceRecord[]): NormalizedInspection[
       missingCount: Number.isFinite(missingCount) ? missingCount : 0
     };
   });
+}
+
+function readingStats(readings: NormalizedInspection[]) {
+  const correct = readings.filter((reading) => reading.status === "correct").length;
+  const review = readings.filter((reading) => reading.status === "review").length;
+  const retake = readings.filter((reading) => reading.status === "retake_photo").length;
+  const total = readings.length;
+  return {
+    total,
+    correct,
+    review,
+    retake,
+    errorRate: total ? review / total : 0,
+    retakeRate: total ? retake / total : 0,
+    missingPieces: readings.reduce((sum, reading) => sum + reading.missingCount, 0)
+  };
 }
 
 function buildLeadershipMetrics(
@@ -3673,10 +3568,18 @@ function buildMoldSummaries(
     return id;
   }
 
+  function touch(id: string, createdAt?: string, actionAt?: string) {
+    const current = keys.get(id) || {};
+    const nextCreated = earliestDate(current.createdAt, createdAt);
+    const nextAction = latestDate(current.lastActionAt, actionAt || createdAt);
+    keys.set(id, { ...current, createdAt: nextCreated, lastActionAt: nextAction });
+  }
+
   for (const recipe of recipes) {
     const family = recordString(recipe, "family") || fieldValue(recipe, "family") || String(recipe.id || "molde_demo");
     const zoneId = recordString(recipe, "zone_id") || DEFAULT_ZONES[0].id;
-    ensure(family, zoneId, recordString(recipe, "name") || String(recipe.id));
+    const id = ensure(family, zoneId, recordString(recipe, "name") || String(recipe.id));
+    touch(id, recordDate(recipe, "created_at"), recordDate(recipe, "updated_at"));
   }
 
   for (const dataset of datasets) {
@@ -3684,6 +3587,7 @@ function buildMoldSummaries(
     const zoneId = recordString(dataset, "zone_id") || fieldValue(dataset, "zone_id") || DEFAULT_ZONES[0].id;
     if (!family) continue;
     const id = ensure(family, zoneId);
+    touch(id, recordDate(dataset, "created_at"), recordDate(dataset, "updated_at"));
     const current = keys.get(id) || {};
     keys.set(id, {
       ...current,
@@ -3700,6 +3604,7 @@ function buildMoldSummaries(
     const zoneId = String(source.zone_id || DEFAULT_ZONES[0].id);
     if (!family) continue;
     const id = ensure(family, zoneId);
+    touch(id, recordDate(candidate, "created_at"), recordDate(candidate, "updated_at"));
     const current = keys.get(id) || {};
     const metrics = (source.metrics || {}) as Record<string, unknown>;
     const confidence = typeof metrics.confidence === "number" ? metrics.confidence : current.confidence;
@@ -3718,11 +3623,13 @@ function buildMoldSummaries(
     const zoneId = String(source.zone_id || DEFAULT_ZONES[0].id);
     if (!family) continue;
     const id = ensure(family, zoneId);
-    const current = keys.get(id) || {};
     const jobStatus = String(source.status || "").toLowerCase();
+    const actionAt = String(source.updated_at || source.created_at || job.updated_at || job.created_at || "");
+    touch(id, recordDate(job, "created_at"), actionAt);
+    const current = keys.get(id) || {};
     keys.set(id, {
       ...current,
-      lastTraining: String(source.updated_at || source.created_at || job.updated_at || job.created_at || ""),
+      lastTraining: actionAt,
       status: jobStatus.includes("running") || jobStatus.includes("queued") ? "training" : current.status
     });
   }
@@ -3734,8 +3641,10 @@ function buildMoldSummaries(
     const zoneId = String(source.zone_id || DEFAULT_ZONES[0].id);
     if (!family) continue;
     const id = ensure(family, zoneId);
+    const createdAt = String(source.created_at || inspection.created_at || "");
+    touch(id, createdAt, createdAt);
     const current = keys.get(id) || {};
-    keys.set(id, { ...current, lastInspection: String(source.created_at || inspection.created_at || "") });
+    keys.set(id, { ...current, lastInspection: createdAt });
   }
 
   const summaries = Array.from(keys.values()).map((item) => {
@@ -3755,6 +3664,8 @@ function buildMoldSummaries(
       pieceCount: item.pieceCount || 0,
       confidence: item.confidence ?? null,
       falsePassRate: item.falsePassRate ?? null,
+      createdAt: item.createdAt,
+      lastActionAt: item.lastActionAt,
       lastTraining: item.lastTraining,
       lastInspection: item.lastInspection
     } as MoldSummary;
@@ -3772,6 +3683,28 @@ function buildMoldSummaries(
     confidence: null,
     falsePassRate: null
   }];
+}
+
+function dateRank(value?: string) {
+  const time = value ? Date.parse(value) : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function latestDate(left?: string, right?: string) {
+  if (!left) return right;
+  if (!right) return left;
+  return dateRank(right) > dateRank(left) ? right : left;
+}
+
+function earliestDate(left?: string, right?: string) {
+  if (!left) return right;
+  if (!right) return left;
+  return dateRank(right) < dateRank(left) ? right : left;
+}
+
+function recordDate(record: ResourceRecord, key: string) {
+  const source = recordSource(record);
+  return String(source[key] || record[key] || "");
 }
 
 function ProgressSteps({ mold }: { mold: MoldSummary }) {
@@ -3941,4 +3874,7 @@ function saveMoldDrafts(drafts: MoldDrafts) {
   window.localStorage.setItem("mold_vision_mold_drafts", JSON.stringify(drafts));
 }
 
-createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);
+const rootElement = document.getElementById("root")! as HTMLElement & { _moldVisionRoot?: ReturnType<typeof createRoot> };
+const root = rootElement._moldVisionRoot || createRoot(rootElement);
+rootElement._moldVisionRoot = root;
+root.render(<React.StrictMode><App /></React.StrictMode>);

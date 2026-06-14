@@ -146,16 +146,18 @@ export default function GuidedCapture({ referenceUrl, zone, onCapture, onCancel 
         {error ? <div className="labCaptureError">{error}</div> : null}
       </div>
 
-      <div className="labCaptureControls">
+      <div className={`labCaptureControls ${aligned ? "ok" : ""}`}>
         <div className={`labAlignMsg ${aligned ? "ok" : ""}`}>
           {aligned ? "Encuadre correcto — mantén firme…" : "Mueve la tablet para que la pieza coincida con la guía"}
         </div>
-        <label>Transparencia guía
-          <input type="range" min={15} max={80} value={Math.round(opacity * 100)} onChange={(e) => setOpacity(Number(e.target.value) / 100)} />
-        </label>
-        <label>Exigencia de encuadre
-          <input type="range" min={0} max={100} value={Math.round(strictness * 100)} onChange={(e) => setStrictness(Number(e.target.value) / 100)} />
-        </label>
+        <div className="labCaptureSliders">
+          <label>Transparencia guía
+            <input type="range" min={15} max={80} value={Math.round(opacity * 100)} onChange={(e) => setOpacity(Number(e.target.value) / 100)} />
+          </label>
+          <label>Exigencia de encuadre
+            <input type="range" min={0} max={100} value={Math.round(strictness * 100)} onChange={(e) => setStrictness(Number(e.target.value) / 100)} />
+          </label>
+        </div>
         <button className="primary" onClick={doCapture} type="button">Capturar ahora</button>
       </div>
 

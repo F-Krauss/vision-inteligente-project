@@ -267,6 +267,83 @@ def inspect_expected_pieces_against_reference(
     }
 
 
+def transfer_annotations(
+    reference_path: str | Path,
+    candidate_paths: list[str | Path],
+    annotations: list[dict[str, Any]],
+    min_inlier_ratio: float = 0.08,
+) -> list[dict[str, Any]]:
+    """Project reference annotations onto each candidate photo via ORB homography.
+
+    Each annotation carries normalized ``polygon`` (and/or ``bbox``) in the
+    reference frame; we align the candidate to the reference, invert the
+    homography to map reference→candidate, and warp every vertex. Returns, per
+    candidate, the warped annotations plus an alignment confidence so the UI can
+    flag low-quality maps for manual review."""
+    results: list[dict[str, Any]] = []
+    if cv2 is None or np is None:
+        for path in candidate_paths:
+            results.append({"path": str(path), "ok": False, "confidence": 0.0,
+                            "message": "Falta OpenCV para mapear anotaciones.", "annotations": []})
+        return results
+
+    reference = cv2.imread(str(reference_path), cv2.IMREAD_COLOR)
+    if reference is None:
+        for path in candidate_paths:
+            results.append({"path": str(path), "ok": False, "confidence": 0.0,
+                            "message": "No se pudo leer la imagen de referencia.", "annotations": []})
+        return results
+    rh, rw = reference.shape[:2]
+
+    for path in candidate_paths:
+        candidate = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        if candidate is None:
+            results.append({"path": str(path), "ok": False, "confidence": 0.0,
+                            "message": "No se pudo leer la imagen de comparación.", "annotations": []})
+            continue
+        if candidate.shape[:2] != (rh, rw):
+            candidate = cv2.resize(candidate, (rw, rh), interpolation=cv2.INTER_AREA)
+
+        _, alignment = _align_candidate_to_reference(reference, candidate)
+        homography = alignment.get("_homography")
+        confidence = float(alignment.get("inlier_ratio") or 0.0)
+        if not alignment.get("ok") or homography is None or confidence < min_inlier_ratio:
+            results.append({"path": str(path), "ok": False, "confidence": round(confidence, 4),
+                            "message": alignment.get("reason") or "Alineación insuficiente.", "annotations": []})
+            continue
+
+        try:
+            ref_to_candidate = np.linalg.inv(homography)
+        except np.linalg.LinAlgError:
+            results.append({"path": str(path), "ok": False, "confidence": round(confidence, 4),
+                            "message": "Homografía no invertible.", "annotations": []})
+            continue
+
+        warped_annotations = [_warp_annotation(ann, ref_to_candidate, rw, rh) for ann in annotations]
+        results.append({"path": str(path), "ok": True, "confidence": round(confidence, 4),
+                        "message": "", "annotations": warped_annotations})
+    return results
+
+
+def _warp_annotation(annotation: dict[str, Any], matrix: Any, width: int, height: int) -> dict[str, Any]:
+    polygon = annotation.get("polygon")
+    if not (isinstance(polygon, list) and len(polygon) >= 2):
+        bbox = annotation.get("bbox") or [0.0, 0.0, 0.0, 0.0]
+        x1, y1, x2, y2 = [float(v) for v in bbox]
+        polygon = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
+    pts = np.array([[[float(p[0]) * width, float(p[1]) * height]] for p in polygon], dtype=np.float32)
+    warped = cv2.perspectiveTransform(pts, matrix).reshape(-1, 2)
+    new_polygon = [[_clip01(px / width), _clip01(py / height)] for px, py in warped]
+    xs = [p[0] for p in new_polygon]
+    ys = [p[1] for p in new_polygon]
+    new_bbox = [min(xs), min(ys), max(xs), max(ys)]
+    return {**annotation, "polygon": new_polygon, "bbox": new_bbox}
+
+
+def _clip01(value: float) -> float:
+    return float(min(1.0, max(0.0, value)))
+
+
 def _expected_pieces(family: str, zone_id: str, datasets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for record in reversed(datasets):
         source = record.get("data") if isinstance(record.get("data"), dict) else record
@@ -357,6 +434,9 @@ def _align_candidate_to_reference(reference: Any, candidate: Any) -> tuple[Any, 
     alignment["ok"] = True
     alignment["valid_mask_ratio"] = round(float(np.count_nonzero(valid_mask)) / float(width * height), 4)
     alignment["_valid_mask"] = valid_mask
+    # candidate→reference homography in reference-sized pixel space; the transfer
+    # path inverts it to project reference annotations onto the candidate.
+    alignment["_homography"] = homography
     return aligned, alignment
 
 

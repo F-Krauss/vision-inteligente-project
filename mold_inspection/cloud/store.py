@@ -12,6 +12,8 @@ from .schemas import ResourceRecord, utc_now
 COLLECTIONS = {
     "annotations",
     "annotation_datasets",
+    "categories",
+    "section_samples",
     "families",
     "molds",
     "mold_section_plans",

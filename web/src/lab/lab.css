@@ -120,38 +120,59 @@
 .labResultRow.v-present { border-left-color: #16a34a; }
 .labSens { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); }
 
-/* Guided capture (fullscreen) */
+/* Guided capture (fullscreen) — matches fullscreenCamera vocabulary */
 .labCapture {
-  position: fixed; inset: 0; z-index: 60; background: #05070d; color: #fff;
-  display: flex; flex-direction: column;
+  position: fixed; inset: 0; z-index: 60; color: #fff;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  background: #07111f;
 }
-.labCaptureTop { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
-.labCaptureStage { position: relative; flex: 1; overflow: hidden; background: #000; }
-.labCaptureStage video { width: 100%; height: 100%; object-fit: cover; }
+.labCaptureTop {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+}
+.labCaptureTop strong { font-size: 15px; }
+.labCaptureStage {
+  position: relative; min-height: 0; overflow: hidden;
+  border-radius: 6px; border: 1px solid rgba(148, 163, 184, 0.3);
+  background: #020617;
+}
+.labCaptureStage video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .labGhost { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
 .labGhostZone { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .labGhostZone polygon { fill: none; stroke: #22c55e; stroke-width: 0.6; stroke-dasharray: 2 1.5; }
 
 .labAlignRing {
-  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-  width: 86px; height: 86px; border-radius: 50%;
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 104px; height: 104px; border-radius: 50%;
   background:
-    radial-gradient(closest-side, rgba(5,7,13,0.85) 70%, transparent 72%),
+    radial-gradient(closest-side, rgba(7,17,31,0.88) 70%, transparent 72%),
     conic-gradient(#38bdf8 calc(var(--p, 0) * 360deg), rgba(255,255,255,0.18) 0);
-  display: flex; align-items: center; justify-content: center; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 16px;
 }
 .labAlignRing.ok {
   background:
-    radial-gradient(closest-side, rgba(5,7,13,0.85) 70%, transparent 72%),
+    radial-gradient(closest-side, rgba(7,17,31,0.88) 70%, transparent 72%),
     conic-gradient(#22c55e calc(var(--p, 0) * 360deg), rgba(34,197,94,0.25) 0);
 }
 .labCaptureError {
-  position: absolute; bottom: 16px; left: 16px; right: 16px; background: rgba(185,28,28,0.85);
-  padding: 10px; border-radius: 8px; text-align: center;
+  position: absolute; bottom: 12px; left: 12px; right: 12px;
+  background: rgba(185,28,28,0.85); padding: 10px; border-radius: 6px; text-align: center; font-size: 12px;
 }
-.labCaptureControls { padding: 12px 16px 20px; display: flex; flex-direction: column; gap: 10px; }
-.labAlignMsg { text-align: center; font-weight: 600; color: #fca5a5; }
+.labCaptureControls {
+  display: grid; gap: 9px;
+  border: 1px solid rgba(254, 202, 202, 0.38); border-radius: 6px;
+  padding: 11px 12px; background: rgba(127, 29, 29, 0.32);
+  transition: border-color 0.2s, background 0.2s;
+}
+.labCaptureControls.ok {
+  border-color: rgba(187, 247, 208, 0.48);
+  background: rgba(20, 83, 45, 0.38);
+}
+.labAlignMsg { font-weight: 700; color: #fca5a5; font-size: 13px; }
 .labAlignMsg.ok { color: #86efac; }
-.labCaptureControls label { display: flex; flex-direction: column; font-size: 12px; color: #cbd5e1; gap: 4px; }
-.labCaptureControls input[type="range"] { width: 100%; }
-.labCaptureControls .primary { min-height: 52px; font-size: 16px; }
+.labCaptureSliders { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.labCaptureControls label { display: flex; flex-direction: column; font-size: 11px; color: #94a3b8; gap: 3px; }
+.labCaptureControls input[type="range"] { width: 100%; min-height: 0; padding: 0; border: 0; background: transparent; }
+.labCaptureControls .primary { min-height: 42px; font-size: 13px; font-weight: 750; }
