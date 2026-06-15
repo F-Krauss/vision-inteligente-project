@@ -75,9 +75,9 @@ def main(argv: list[str] | None = None) -> int:
 
     train_parser = subparsers.add_parser("train")
     train_parser.add_argument("--data-yaml", default=str(DEFAULT_YOLO_DIR / "data.yaml"))
-    train_parser.add_argument("--weights", default="yolo11n.pt")
+    train_parser.add_argument("--weights", default="yolo11s.pt")
     train_parser.add_argument("--epochs", type=int, default=80)
-    train_parser.add_argument("--image-size", type=int, default=960)
+    train_parser.add_argument("--image-size", type=int, default=1280)
 
     inspect_parser = subparsers.add_parser("inspect")
     inspect_parser.add_argument("--weights", required=True)

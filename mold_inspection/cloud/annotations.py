@@ -8,6 +8,7 @@ import re
 import shutil
 
 from .config import CloudSettings
+from .model_artifacts import materialize_model_uri
 from .references import object_public_url
 from .references import expected_pieces_for_zone
 from .schemas import (
@@ -205,7 +206,7 @@ def create_dataset_from_annotations(
         label_out.write_text("\n".join(_yolo_lines(annotation.get("annotations") or [], class_to_id)) + "\n")
         rows.append(
             {
-                "image_path": str(image_out),
+                "image_path": image_out.relative_to(root).as_posix(),
                 "family": request.family,
                 "zone_id": request.zone_id,
                 "label": "annotated",
@@ -226,7 +227,7 @@ def create_dataset_from_annotations(
     data_yaml = root / "data.yaml"
     names_block = "\n".join(f"  {index}: {name}" for index, name in enumerate(class_names))
     data_yaml.write_text(
-        f"path: {root}\n"
+        "path: .\n"
         "train: images/train\n"
         "val: images/val\n"
         "test: images/test\n"
@@ -237,12 +238,20 @@ def create_dataset_from_annotations(
     mask = root / "mask.png"
     _write_full_mask(first_image_path, mask)
 
-    response.dataset_uri = f"file://{root}"
-    response.data_yaml_uri = f"file://{data_yaml}"
-    response.manifest_uri = f"file://{manifest}"
-    response.mask_uri = f"file://{mask}"
+    if settings.artifact_bucket:
+        dataset_prefix = f"annotation_datasets/{response.id}"
+        _upload_tree_to_gcs(root, settings.artifact_bucket, dataset_prefix)
+        response.dataset_uri = f"gs://{settings.artifact_bucket}/{dataset_prefix}"
+        response.data_yaml_uri = f"{response.dataset_uri}/data.yaml"
+        response.manifest_uri = f"{response.dataset_uri}/manifest.csv"
+        response.mask_uri = f"{response.dataset_uri}/mask.png"
+    else:
+        response.dataset_uri = f"file://{root}"
+        response.data_yaml_uri = f"file://{data_yaml}"
+        response.manifest_uri = f"file://{manifest}"
+        response.mask_uri = f"file://{mask}"
     payload = response.model_dump()
-    payload["expected_pieces"] = _expected_from_classes(class_names)
+    payload["expected_pieces"] = _expected_from_annotations(annotations)
     store.put("annotation_datasets", response.id, payload)
     store.put("datasets", response.id, payload)
     return response
@@ -279,27 +288,39 @@ def _draft_from_model(
 ) -> AutoAnnotationDraftResponse | None:
     model_version = _resolve_model_version(request, store)
     model_uri = str(model_version.get("model_uri") or "") if model_version else ""
-    if not model_uri.startswith("file://"):
+    if not model_uri:
         return None
-    model_path = Path(model_uri.removeprefix("file://"))
-    if not model_path.exists():
+    settings = getattr(objects, "settings", None)
+    if isinstance(settings, CloudSettings):
+        model_path = materialize_model_uri(model_uri, settings)
+    else:
+        model_path = Path(model_uri.removeprefix("file://")) if model_uri.startswith("file://") else Path(model_uri)
+    if not model_path or not model_path.exists():
         return None
     if model_path.suffix.lower() == ".json":
         return _draft_from_template_model(request, model_version, model_path)
     try:
-        from ultralytics import YOLO
-    except ImportError:
+        from mold_inspection.piece_inspector import PIECE_DETECTOR_IMGSZ, predict_piece_detections
+    except (ImportError, RuntimeError):
         return None
 
     image_path = objects.materialize(request.image_uri)
-    prediction = YOLO(str(model_path)).predict(str(image_path), conf=request.confidence, verbose=False)[0]
-    width = float(prediction.orig_shape[1])
-    height = float(prediction.orig_shape[0])
+    try:
+        detections, width, height = predict_piece_detections(
+            model_path,
+            image_path,
+            confidence=request.confidence,
+            imgsz=PIECE_DETECTOR_IMGSZ,
+            tile=True,
+        )
+    except RuntimeError:
+        return None
     drafts: list[PieceAnnotationPayload] = []
-    for index, box in enumerate(prediction.boxes, start=1):
-        class_id = int(box.cls[0].item())
-        x1, y1, x2, y2 = [float(value) for value in box.xyxy[0].tolist()]
-        class_name = str(prediction.names[class_id])
+    if width <= 0 or height <= 0:
+        return None
+    for index, detection in enumerate(detections, start=1):
+        x1, y1, x2, y2 = [float(value) for value in detection["bbox"]]
+        class_name = str(detection["class_name"])
         drafts.append(
             PieceAnnotationPayload(
                 id=f"auto_model_{index:03d}",
@@ -459,6 +480,20 @@ def _class_names(records: list[dict[str, Any]]) -> list[str]:
     return names or ["piece"]
 
 
+def _upload_tree_to_gcs(root: Path, bucket_name: str, prefix: str) -> None:
+    try:
+        from google.cloud import storage
+    except ImportError as exc:  # pragma: no cover
+        raise RuntimeError("google-cloud-storage is required to upload annotation datasets") from exc
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        blob_name = f"{prefix.rstrip('/')}/{path.relative_to(root).as_posix()}"
+        bucket.blob(blob_name).upload_from_filename(path)
+
+
 def _yolo_lines(items: list[dict[str, Any]], class_to_id: dict[str, int]) -> list[str]:
     lines: list[str] = []
     for item in items:
@@ -505,6 +540,31 @@ def _expected_from_classes(class_names: list[str]) -> list[dict[str, Any]]:
         }
         for name in class_names
     ]
+
+
+def _expected_from_annotations(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    pieces: dict[str, dict[str, Any]] = {}
+    for record in records:
+        for index, item in enumerate(record.get("annotations") or [], start=1):
+            if item.get("status", "present") not in {"present", "uncertain"}:
+                continue
+            bbox = item.get("bbox")
+            if not (isinstance(bbox, list) and len(bbox) == 4):
+                continue
+            class_name = str(item.get("class_name") or "piece")
+            piece_id = str(item.get("element_id") or item.get("id") or f"{class_name}_{index:03d}")
+            pieces.setdefault(
+                piece_id,
+                {
+                    "id": piece_id,
+                    "name": str(item.get("category_name") or class_name).replace("_", " ").title(),
+                    "class_name": class_name,
+                    "roi": [_clip(value) for value in bbox],
+                    "required": True,
+                    "critical": item.get("importance") != "minor",
+                },
+            )
+    return list(pieces.values()) or _expected_from_classes(_class_names(records))
 
 
 def _with_public_url(record: dict[str, Any]) -> dict[str, Any]:

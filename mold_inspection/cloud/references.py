@@ -96,6 +96,77 @@ def get_zone_reference(
     return None
 
 
+def get_zone_references(
+    zone_id: str,
+    store: MetadataStore,
+    family: str | None = None,
+) -> list[dict[str, Any]]:
+    """All golden references for a zone, ordered oldest→newest, with public URLs.
+
+    Multi-reference CV consensus compares the candidate against *every* reference
+    to suppress single-reference lighting/pose artifacts. ``get_zone_reference``
+    remains for callers that only need the single latest representative.
+    """
+    candidates: list[dict[str, Any]] = []
+    for record in store.list("references"):
+        source = _flat(record)
+        if source.get("zone_id") != zone_id:
+            continue
+        if family and source.get("family") != family:
+            continue
+        candidates.append(source)
+    if candidates:
+        candidates.sort(key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""))
+        return [_with_public_urls(item) for item in candidates]
+
+    # No standalone reference records — fall back to the zone's embedded reference.
+    single = get_zone_reference(zone_id, store, family=family)
+    return [single] if single else []
+
+
+def gather_annotated_references(
+    zone_id: str,
+    store: MetadataStore,
+    family: str | None = None,
+) -> list[dict[str, Any]]:
+    """Every annotated golden image for a zone: ``{image_uri, boxes}`` per record.
+
+    Each annotation record is one photo the operator drew parts on; the multi-
+    reference per-part consensus aligns the candidate to each and votes. Only
+    ``present``/``uncertain`` boxes with a valid normalized bbox and an image_uri
+    are kept (mirrors ``inspector_training._latest_annotation_boxes`` but returns
+    *all* records, not just the latest, and carries the image_uri).
+    """
+    references: list[dict[str, Any]] = []
+    for record in store.list("annotations"):
+        source = _flat(record)
+        if source.get("zone_id") != zone_id:
+            continue
+        if family and source.get("family") != family:
+            continue
+        image_uri = source.get("image_uri")
+        if not image_uri:
+            continue
+        boxes: list[dict[str, Any]] = []
+        for item in source.get("annotations") or []:
+            if str(item.get("status", "present")) not in {"present", "uncertain"}:
+                continue
+            bbox = item.get("bbox")
+            if not (isinstance(bbox, list) and len(bbox) == 4):
+                continue
+            class_name = str(item.get("class_name") or "piece")
+            boxes.append(
+                {
+                    "element_id": str(item.get("element_id") or item.get("id") or class_name),
+                    "class_name": class_name,
+                    "bbox": [max(0.0, min(1.0, float(value))) for value in bbox],
+                }
+            )
+        if boxes:
+            references.append({"image_uri": str(image_uri), "boxes": boxes})
+    return references
+
+
 def expected_pieces_for_zone(zone_id: str, store: MetadataStore, family: str | None = None) -> list[dict[str, Any]]:
     dataset_pieces: list[dict[str, Any]] = []
     for record in reversed(store.list("datasets")):

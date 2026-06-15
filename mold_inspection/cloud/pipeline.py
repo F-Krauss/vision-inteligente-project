@@ -4,11 +4,21 @@ from pathlib import Path
 from typing import Any
 
 from mold_inspection.mold_segmenter import normalize_mold_crop
-from mold_inspection.piece_inspector import inspect_expected_pieces, inspect_expected_pieces_against_reference
+from mold_inspection.piece_inspector import (
+    inspect_expected_pieces,
+    inspect_expected_pieces_against_reference,
+    inspect_expected_pieces_against_references,
+)
 
 from .config import CloudSettings
-from .gemini_inspector import inspect_with_cv, inspect_with_gemini
-from .references import expected_pieces_for_zone, get_zone_reference
+from .cv_inspector import inspect_with_cv_consensus
+from .model_artifacts import materialize_model_uri
+from .references import (
+    expected_pieces_for_zone,
+    gather_annotated_references,
+    get_zone_reference,
+    get_zone_references,
+)
 from .schemas import InspectionCreateRequest, InspectionRecord
 from .storage import ObjectStorage
 from .store import MetadataStore
@@ -84,19 +94,22 @@ class CloudInspectionPipeline:
 
         expected_pieces = expected_pieces_for_zone(request.zone_id, self.store, family=request.family)
         best_model_dir = self.settings.model_registry_dir / request.family / request.zone_id / "best_model"
-        if not (best_model_dir / "profile.json").exists():
+        piece_detector_path = self._piece_detector_path(request)
+        has_anomaly_model = (best_model_dir / "profile.json").exists()
+        if not has_anomaly_model and not piece_detector_path:
             result = {
                 "capture_quality": quality,
                 "mold_segmentation": segmentation.to_dict(),
                 "model_version": None,
                 "reason": "missing_best_model",
             }
-            reference = get_zone_reference(request.zone_id, self.store, family=request.family)
+            references = get_zone_references(request.zone_id, self.store, family=request.family)
+            reference = references[-1] if references else None
             piece_inspection = self._inspect_reference_pieces(
                 request=request,
                 normalized_path=normalized_path,
                 expected_pieces=expected_pieces,
-                reference=reference,
+                references=references,
             )
             if piece_inspection:
                 result["reason"] = "reference_roi_diff_without_model"
@@ -155,16 +168,24 @@ class CloudInspectionPipeline:
             self.store.put("inspections", record.id, record.model_dump())
             return record
 
-        from mold_inspection.model_suite import inspect_best_model
+        if has_anomaly_model:
+            from mold_inspection.model_suite import inspect_best_model
 
-        reports = inspect_best_model(
-            family=request.family,
-            zone_id=request.zone_id,
-            images=[normalized_path],
-            registry_dir=self.settings.model_registry_dir,
-            evidence_dir=self.settings.evidence_dir,
-        )
-        result = reports[0]["result"]
+            reports = inspect_best_model(
+                family=request.family,
+                zone_id=request.zone_id,
+                images=[normalized_path],
+                registry_dir=self.settings.model_registry_dir,
+                evidence_dir=self.settings.evidence_dir,
+            )
+            result = reports[0]["result"]
+        else:
+            result = {
+                "status": "correct",
+                "message": "Modelo YOLO de piezas disponible; anomaly guardrail pendiente.",
+                "model_version": None,
+                "reason": "piece_detector_without_anomaly_model",
+            }
         result["capture_quality"] = quality
         result["mold_segmentation"] = segmentation.to_dict()
         result["preprocessed_image_path"] = str(normalized_path)
@@ -175,11 +196,26 @@ class CloudInspectionPipeline:
             datasets=self.store.list("datasets"),
             registry_dir=self.settings.model_registry_dir,
             expected_pieces=expected_pieces,
+            detector_path=piece_detector_path,
         )
         result["piece_inspection"] = piece_inspection
         if result["status"] == "correct" and piece_inspection["status"] == "review":
             result["status"] = "review"
             result["message"] = piece_inspection["message"]
+
+        # ── Agreement gate ────────────────────────────────────────────────────
+        # The trained model (anomaly ∧ YOLO pieces) only auto-approves when the
+        # reference cross-check agrees too. Each signal is independent, so requiring
+        # consensus before "correct" drives false-approval toward zero; any
+        # disagreement defers to human review (the project's standing priority).
+        if result["status"] == "correct":
+            cross_check = self._reference_cross_check(request)
+            if cross_check:
+                result["reference_cross_check"] = cross_check
+                if cross_check.get("status") == "review":
+                    result["status"] = "review"
+                    result["message"] = cross_check.get("message") or result["message"]
+
         evidence = _evidence_urls(result, self.settings.evidence_dir)
         record = InspectionRecord(
             family=request.family,
@@ -198,71 +234,134 @@ class CloudInspectionPipeline:
         self.store.put("inspections", record.id, record.model_dump())
         return record
 
+    def _piece_detector_path(self, request: InspectionCreateRequest) -> Path | None:
+        local = self.settings.model_registry_dir / request.family / request.zone_id / "piece_detector" / "best.pt"
+        if local.exists():
+            return local
+        model_id = f"best_{request.family}_{request.zone_id}".replace("/", "_")
+        version = self.store.get("model_versions", model_id) or {}
+        model_uri = str(version.get("model_uri") or "")
+        if not model_uri or not model_uri.endswith(".pt"):
+            return None
+        try:
+            return materialize_model_uri(model_uri, self.settings, filename="best.pt")
+        except Exception:
+            return None
+
+    def _annotated_references_local(self, request: InspectionCreateRequest) -> list[dict[str, Any]]:
+        """Annotated golden images for the zone with their URIs materialized to local
+        paths (the per-part diff reads them with cv2.imread). Unreadable/HEIC refs are
+        dropped — the consensus uses whatever readable references remain."""
+        annotated_local: list[dict[str, Any]] = []
+        for ref in gather_annotated_references(request.zone_id, self.store, family=request.family):
+            try:
+                local_path = self.objects.materialize(str(ref["image_uri"]))
+            except Exception:
+                continue
+            annotated_local.append({"image_path": str(local_path), "boxes": ref["boxes"]})
+        return annotated_local
+
+    def _reference_cross_check(self, request: InspectionCreateRequest) -> dict[str, Any] | None:
+        """Independent reference verdict used to gate the trained model's auto-approval.
+        Prefers the per-part annotated-reference consensus; falls back to the coarse
+        golden-reference CV consensus. Returns None when the zone has no references to
+        cross-check against (nothing to disagree with)."""
+        annotated = self._annotated_references_local(request)
+        if annotated:
+            return inspect_expected_pieces_against_references(
+                family=request.family,
+                zone_id=request.zone_id,
+                candidate_image_path=str(self.objects.materialize(str(request.image_uri))),
+                annotated_references=annotated,
+                evidence_dir=self.settings.evidence_dir,
+            )
+        usable_refs = [
+            ref for ref in get_zone_references(request.zone_id, self.store, family=request.family)
+            if ref.get("image_uri")
+        ]
+        if not usable_refs:
+            return None
+        cand_uri = str(request.image_uri)
+        cand_path: str | Path = cand_uri if cand_uri.startswith("gs://") else self.objects.materialize(cand_uri)
+        ref_paths: list[str | Path] = [
+            (uri if uri.startswith("gs://") else self.objects.materialize(uri))
+            for uri in (str(ref["image_uri"]) for ref in usable_refs)
+        ]
+        try:
+            return inspect_with_cv_consensus(
+                reference_image_paths=ref_paths,
+                candidate_image_path=cand_path,
+                family=request.family,
+                zone_id=request.zone_id,
+                evidence_dir=self.settings.evidence_dir,
+            )
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("Reference cross-check failed: %s", exc)
+            return None
+
     def _inspect_reference_pieces(
         self,
         request: InspectionCreateRequest,
         normalized_path: Path,
         expected_pieces: list[dict[str, Any]],
-        reference: dict[str, Any] | None,
+        references: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
-        if not reference or not reference.get("image_uri"):
+        usable_refs = [ref for ref in references if ref.get("image_uri")]
+
+        # ── Multi-annotated-reference per-part consensus: primary when the zone has
+        # annotated golden images. Checks each known part location across every
+        # annotated reference (false-rejection-safe three-state vote). Most precise
+        # for the tiny parts, since it inspects each ROI rather than a global blob. ─
+        annotated = self._annotated_references_local(request)
+        if annotated:
+            consensus = inspect_expected_pieces_against_references(
+                family=request.family,
+                zone_id=request.zone_id,
+                candidate_image_path=str(self.objects.materialize(str(request.image_uri))),
+                annotated_references=annotated,
+                evidence_dir=self.settings.evidence_dir,
+            )
+            if consensus and consensus.get("status") in {"correct", "review"}:
+                return consensus
+
+        if not usable_refs:
             return None
 
-        # ── Classical CV: primary path ────────────────────────────────────────
-        # Works on raw paths (GCS or local). Handles HEIC internally.
-        # Fully deterministic, no API calls, zero false positives (SSIM gate).
-        ref_uri  = str(reference["image_uri"])
+        # ── Classical CV consensus: coarse fallback ───────────────────────────
+        # Compares the candidate against EVERY golden reference and keeps only
+        # findings corroborated by a majority of references. Deterministic, no
+        # API calls; single-reference phantoms (lighting/pose) are suppressed.
         cand_uri = str(request.image_uri)
+        cand_path_cv: str | Path = (
+            cand_uri if cand_uri.startswith("gs://") else self.objects.materialize(cand_uri)
+        )
+        ref_paths_cv: list[str | Path] = [
+            (uri if uri.startswith("gs://") else self.objects.materialize(uri))
+            for uri in (str(ref["image_uri"]) for ref in usable_refs)
+        ]
         try:
-            ref_path_cv: str | Path = (
-                ref_uri if ref_uri.startswith("gs://") else self.objects.materialize(ref_uri)
-            )
-            cand_path_cv: str | Path = (
-                cand_uri if cand_uri.startswith("gs://") else self.objects.materialize(cand_uri)
-            )
-            cv_result = inspect_with_cv(
-                reference_image_path=ref_path_cv,
+            cv_result = inspect_with_cv_consensus(
+                reference_image_paths=ref_paths_cv,
                 candidate_image_path=cand_path_cv,
                 family=request.family,
                 zone_id=request.zone_id,
                 evidence_dir=self.settings.evidence_dir,
             )
-            if cv_result.get("status") in {"correct", "review"}:
+            if cv_result and cv_result.get("status") in {"correct", "review"}:
                 return cv_result
         except Exception as exc:
             import logging
             logging.getLogger(__name__).warning(
-                "Classical CV inspection error, falling back to Gemini: %s", exc
+                "CV consensus inspection error, falling back to pixel-diff: %s", exc
             )
 
-        # ── Gemini Vision: fallback (if CV fails) ─────────────────────────────
-        try:
-            ref_path_for_gemini: str | Path = (
-                ref_uri if ref_uri.startswith("gs://") else self.objects.materialize(ref_uri)
-            )
-            cand_path_for_gemini: str | Path = (
-                cand_uri if cand_uri.startswith("gs://") else self.objects.materialize(cand_uri)
-            )
-            gemini_result = inspect_with_gemini(
-                reference_image_path=ref_path_for_gemini,
-                candidate_image_path=cand_path_for_gemini,
-                family=request.family,
-                zone_id=request.zone_id,
-                evidence_dir=self.settings.evidence_dir,
-            )
-            if gemini_result.get("status") in {"correct", "review"}:
-                return gemini_result
-            if gemini_result.get("status") == "retake_photo":
-                return gemini_result
-        except Exception as exc:
-            import logging
-            logging.getLogger(__name__).warning("Gemini inspection error, falling back to pixel-diff: %s", exc)
-
-        # ── Pixel-diff fallback (legacy): only reached if Gemini fails ────────
+        # ── Pixel-diff fallback (legacy): only reached if CV could not compare ─
         if not expected_pieces:
             return None
+        primary_uri = str(usable_refs[-1]["image_uri"])
         try:
-            reference_path = self.objects.materialize(ref_uri)
+            reference_path = self.objects.materialize(primary_uri)
             reference_normalized_path = (
                 self.settings.local_state_dir
                 / "preprocessed"

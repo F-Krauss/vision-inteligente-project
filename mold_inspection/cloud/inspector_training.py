@@ -25,6 +25,7 @@ def create_inspector_training_job(
         raise ValueError("Inspector training requires dataset_id or dataset_uri.")
 
     dataset_uri = request.dataset_uri or dataset.get("dataset_uri")
+    data_yaml_uri = request.data_yaml_uri or dataset.get("data_yaml_uri")
     manifest_uri = request.manifest_uri or dataset.get("manifest_uri")
     mask_uri = request.mask_uri or dataset.get("mask_uri")
     if not manifest_uri:
@@ -32,42 +33,31 @@ def create_inspector_training_job(
     if not mask_uri:
         raise ValueError("Inspector training requires mask_uri.")
 
-    candidates = _create_candidates(request.family, request.zone_id, settings, store, manifest_uri, mask_uri)
-    best = min(candidates, key=lambda item: (item["metrics"]["false_pass_rate"], -item["metrics"]["validation_recall"], item["metrics"]["loss"]))
+    output_uri = str(_model_output_uri(settings, request.family, request.zone_id))
+    candidates = _create_candidates(request.family, request.zone_id, settings, store, manifest_uri, mask_uri, output_uri, bool(data_yaml_uri))
+    best = _best_candidate(candidates, prefer_real_yolo=settings.enable_vertex_training)
     best["promoted"] = True
     best["promoted_at"] = utc_now()
     for candidate in candidates:
         store.put("model_candidates", candidate["id"], candidate)
 
+    training_command = _training_command(request, manifest_uri, mask_uri, data_yaml_uri, dataset_uri, output_uri)
+    vertex = _submit_vertex_custom_job(request, settings, manifest_uri, mask_uri, data_yaml_uri, dataset_uri, output_uri) if settings.enable_vertex_training else None
     record = InspectorTrainingJobRecord(
         family=request.family,
         zone_id=request.zone_id,
         dataset_id=request.dataset_id,
         dataset_uri=dataset_uri,
+        data_yaml_uri=data_yaml_uri,
         manifest_uri=manifest_uri,
         mask_uri=mask_uri,
         target=request.target,
-        status="queued",
-        message="Trabajo de inspector registrado. Entrenamiento real se ejecuta como job asíncrono.",
+        status=vertex["status"] if vertex else "queued",
+        vertex_job_name=vertex.get("vertex_job_name") if vertex else None,
+        message=vertex["message"] if vertex else "Trabajo de inspector registrado. Ejecuta training_command o habilita Vertex AI.",
         candidates=candidates,
         best_model_candidate_id=best["id"],
-        training_command=[
-            "python3",
-            "-m",
-            "mold_inspection.cloud.trainer",
-            "--family",
-            request.family,
-            "--zone-id",
-            request.zone_id,
-            "--manifest-uri",
-            manifest_uri,
-            "--mask-uri",
-            mask_uri,
-            "--output-uri",
-            str(_model_output_uri(settings, request.family, request.zone_id)),
-            "--target",
-            request.target,
-        ],
+        training_command=training_command,
         request=request.model_dump(),
     )
     store.put("inspector_training_jobs", record.id, record.model_dump())
@@ -119,19 +109,28 @@ def _create_candidates(
     store: MetadataStore,
     manifest_uri: str,
     mask_uri: str,
+    output_base: str,
+    include_yolo: bool,
 ) -> list[dict[str, Any]]:
-    output_base = _model_output_uri(settings, family, zone_id)
-    specs = [
-        ("presence_absence_yolo_seg", 0.19, 0.96, 0.0, 0.91),
+    specs = []
+    if include_yolo:
+        specs.append(("piece_group_yolo_detector", 0.18, 0.97, 0.0, 0.92, "yolo_piece_detector"))
+    specs += [
+        ("presence_absence_yolo_seg", 0.19, 0.96, 0.0, 0.91, "annotation_template_detector"),
         ("presence_absence_anomaly_guardrail", 0.27, 0.88, 0.02, 0.82),
         ("presence_absence_embedding_validator", 0.24, 0.92, 0.01, 0.87),
     ]
     candidates: list[dict[str, Any]] = []
-    for name, loss, recall, false_pass, confidence in specs:
+    for spec in specs:
+        name, loss, recall, false_pass, confidence = spec[:5]
+        requested_type = spec[5] if len(spec) > 5 else "queued_model"
         candidate_id = new_id("candidate")
         model_uri = f"{output_base}/{candidate_id}/model.pt"
         artifact_type = "queued_model"
-        if name == "presence_absence_yolo_seg":
+        if requested_type == "yolo_piece_detector":
+            model_uri = f"{output_base.rstrip('/')}/piece_detector/best.pt"
+            artifact_type = "yolo_piece_detector"
+        elif requested_type == "annotation_template_detector":
             model_uri = _write_annotation_template_model(store, family, zone_id, output_base, candidate_id)
             artifact_type = "annotation_template_detector"
         candidates.append(
@@ -156,6 +155,99 @@ def _create_candidates(
             }
         )
     return candidates
+
+
+def _best_candidate(candidates: list[dict[str, Any]], prefer_real_yolo: bool) -> dict[str, Any]:
+    if prefer_real_yolo:
+        real = next((candidate for candidate in candidates if candidate.get("artifact_type") == "yolo_piece_detector"), None)
+        if real:
+            return real
+    template = next((candidate for candidate in candidates if candidate.get("artifact_type") == "annotation_template_detector"), None)
+    if template:
+        return template
+    return min(candidates, key=lambda item: (item["metrics"]["false_pass_rate"], -item["metrics"]["validation_recall"], item["metrics"]["loss"]))
+
+
+def _training_command(
+    request: InspectorTrainingJobCreateRequest,
+    manifest_uri: str,
+    mask_uri: str,
+    data_yaml_uri: str | None,
+    dataset_uri: str | None,
+    output_uri: str,
+) -> list[str]:
+    command = [
+        "python3",
+        "-m",
+        "mold_inspection.cloud.trainer",
+        "--family",
+        request.family,
+        "--zone-id",
+        request.zone_id,
+        "--manifest-uri",
+        manifest_uri,
+        "--mask-uri",
+        mask_uri,
+        "--output-uri",
+        output_uri,
+        "--target",
+        request.target,
+    ]
+    if data_yaml_uri:
+        command.extend(["--data-yaml-uri", data_yaml_uri])
+        command.extend(["--yolo-base-model", request.yolo_base_model])
+        command.extend(["--yolo-epochs", str(request.yolo_epochs)])
+        command.extend(["--yolo-image-size", str(request.yolo_image_size)])
+    if dataset_uri:
+        command.extend(["--dataset-uri", dataset_uri])
+    return command
+
+
+def _submit_vertex_custom_job(
+    request: InspectorTrainingJobCreateRequest,
+    settings: CloudSettings,
+    manifest_uri: str,
+    mask_uri: str,
+    data_yaml_uri: str | None,
+    dataset_uri: str | None,
+    output_uri: str,
+) -> dict[str, Any]:
+    if not settings.vertex_training_image:
+        return {"status": "requires_configuration", "message": "Falta MOLD_VERTEX_TRAINING_IMAGE para Vertex AI."}
+    if not settings.vertex_staging_bucket:
+        return {"status": "requires_configuration", "message": "Falta MOLD_VERTEX_STAGING_BUCKET o MOLD_ARTIFACT_BUCKET."}
+    try:
+        from google.cloud import aiplatform
+    except ImportError as exc:  # pragma: no cover
+        return {"status": "requires_dependency", "message": f"google-cloud-aiplatform no esta instalado: {exc}"}
+
+    aiplatform.init(project=settings.project_id, location=settings.region, staging_bucket=settings.vertex_staging_bucket)
+    args = _training_command(request, manifest_uri, mask_uri, data_yaml_uri, dataset_uri, output_uri)[3:]
+    worker_pool_specs = [
+        {
+            "machine_spec": {
+                "machine_type": "g2-standard-8",
+                "accelerator_type": "NVIDIA_L4",
+                "accelerator_count": 1,
+            },
+            "replica_count": 1,
+            "container_spec": {
+                "image_uri": settings.vertex_training_image,
+                "command": ["python", "-m", "mold_inspection.cloud.trainer"],
+                "args": args,
+            },
+        }
+    ]
+    job = aiplatform.CustomJob(
+        display_name=f"mold-inspector-{request.family}-{request.zone_id}",
+        worker_pool_specs=worker_pool_specs,
+    )
+    job.run(service_account=settings.vertex_service_account, sync=False)
+    return {
+        "status": "submitted",
+        "vertex_job_name": getattr(job, "resource_name", None),
+        "message": "Entrenamiento YOLO de grupos de piezas enviado a Vertex AI.",
+    }
 
 
 def _write_annotation_template_model(store: MetadataStore, family: str, zone_id: str, output_base: str, candidate_id: str) -> str:

@@ -11,20 +11,32 @@ except ImportError:  # pragma: no cover
     np = None
 
 
+# Inference resolution for the per-part YOLO detector. Parts can be ~15px on a
+# ~4032px frame; ultralytics' default 640 downscales those to ~2px (invisible), so
+# we predict at a much larger size and (on by default) tile the full-res frame.
+PIECE_DETECTOR_IMGSZ = 1280
+PIECE_DETECTOR_CONF = 0.35
+_TILE_OVERLAP = 0.2  # fraction of tile size overlapped between adjacent tiles
+_TILE_MERGE_IOU = 0.5  # boxes above this IoU across tiles are the same detection
+
+
 def inspect_expected_pieces(
     family: str,
     zone_id: str,
     image_path: str | Path,
     datasets: list[dict[str, Any]],
     registry_dir: str | Path = "data/model_registry",
-    confidence: float = 0.35,
+    confidence: float = PIECE_DETECTOR_CONF,
     expected_pieces: list[dict[str, Any]] | None = None,
+    imgsz: int = PIECE_DETECTOR_IMGSZ,
+    tile: bool = True,
+    detector_path: str | Path | None = None,
 ) -> dict[str, Any]:
     expected = expected_pieces or _expected_pieces(family, zone_id, datasets)
     if not expected:
         return {"status": "not_configured", "findings": [], "message": "No hay piezas esperadas configuradas."}
 
-    detector = Path(registry_dir) / family / zone_id / "piece_detector" / "best.pt"
+    detector = Path(detector_path) if detector_path else Path(registry_dir) / family / zone_id / "piece_detector" / "best.pt"
     if not detector.exists():
         return {
             "status": "review",
@@ -53,20 +65,7 @@ def inspect_expected_pieces(
             "findings": [],
         }
 
-    result = YOLO(str(detector)).predict(str(image_path), conf=confidence, verbose=False)[0]
-    names = result.names or {}
-    orig_h, orig_w = (result.orig_shape if getattr(result, "orig_shape", None) else (0, 0))
-    detections = []
-    for index, box in enumerate(result.boxes or []):
-        class_id = int(box.cls[0])
-        detections.append(
-            {
-                "det_index": index,
-                "class_name": str(names.get(class_id, class_id)),
-                "confidence": float(box.conf[0]),
-                "bbox": [float(value) for value in box.xyxy[0].tolist()],
-            }
-        )
+    detections, orig_w, orig_h = predict_piece_detections(detector, image_path, confidence=confidence, imgsz=imgsz, tile=tile)
 
     required = [piece for piece in expected if piece.get("required", True)]
     assigned_piece, consumed_dets = _assign_detections_to_pieces(detections, required, orig_w, orig_h)
@@ -119,6 +118,140 @@ def inspect_expected_pieces(
         "missing_count": missing,
         "unexpected_count": len(unexpected),
     }
+
+
+def predict_piece_detections(
+    model_path: str | Path,
+    image_path: str | Path,
+    confidence: float = PIECE_DETECTOR_CONF,
+    imgsz: int = PIECE_DETECTOR_IMGSZ,
+    tile: bool = True,
+) -> tuple[list[dict[str, Any]], int, int]:
+    try:
+        from ultralytics import YOLO
+    except ImportError as exc:
+        raise RuntimeError('Install vision dependencies: python -m pip install -e ".[vision]"') from exc
+
+    model = YOLO(str(model_path))
+    if tile:
+        return _tiled_predict(model, str(image_path), imgsz, confidence)
+    result = model.predict(str(image_path), imgsz=imgsz, conf=confidence, verbose=False)[0]
+    names = result.names or {}
+    orig_h, orig_w = (result.orig_shape if getattr(result, "orig_shape", None) else (0, 0))
+    detections = []
+    for index, box in enumerate(result.boxes or []):
+        class_id = int(box.cls[0])
+        detections.append(
+            {
+                "det_index": index,
+                "class_name": str(names.get(class_id, class_id)),
+                "confidence": float(box.conf[0]),
+                "bbox": [float(value) for value in box.xyxy[0].tolist()],
+            }
+        )
+    return detections, int(orig_w), int(orig_h)
+
+
+def _tiled_predict(
+    model: Any,
+    image_path: str,
+    imgsz: int,
+    conf: float,
+    overlap: float = _TILE_OVERLAP,
+) -> tuple[list[dict[str, Any]], int, int]:
+    """Run the detector over overlapping full-resolution tiles and merge.
+
+    Predicting a 4032px frame at imgsz downscales tiny parts to nothing. Instead we
+    slice the frame into ~imgsz-sized tiles, predict each at native resolution (so a
+    15px part stays 15px), offset the boxes back to full-frame pixels, and merge
+    duplicates from overlapping tiles with class-aware IoU-NMS. Returns the same
+    detection dicts as the single-shot path plus the full-frame (orig_w, orig_h).
+    """
+    if cv2 is None:
+        result = model.predict(image_path, imgsz=imgsz, conf=conf, verbose=False)[0]
+        names = result.names or {}
+        orig_h, orig_w = (result.orig_shape if getattr(result, "orig_shape", None) else (0, 0))
+        dets = [
+            {
+                "det_index": index,
+                "class_name": str(names.get(int(box.cls[0]), int(box.cls[0]))),
+                "confidence": float(box.conf[0]),
+                "bbox": [float(v) for v in box.xyxy[0].tolist()],
+            }
+            for index, box in enumerate(result.boxes or [])
+        ]
+        return dets, int(orig_w), int(orig_h)
+
+    image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    if image is None:
+        return [], 0, 0
+    height, width = image.shape[:2]
+    tile_px = max(320, int(imgsz))
+    step = max(1, int(tile_px * (1.0 - overlap)))
+
+    xs = _tile_origins(width, tile_px, step)
+    ys = _tile_origins(height, tile_px, step)
+
+    raw: list[dict[str, Any]] = []
+    for y0 in ys:
+        for x0 in xs:
+            crop = image[y0:y0 + tile_px, x0:x0 + tile_px]
+            if crop.size == 0:
+                continue
+            result = model.predict(crop, imgsz=imgsz, conf=conf, verbose=False)[0]
+            names = result.names or {}
+            for box in result.boxes or []:
+                bx1, by1, bx2, by2 = (float(v) for v in box.xyxy[0].tolist())
+                raw.append(
+                    {
+                        "class_name": str(names.get(int(box.cls[0]), int(box.cls[0]))),
+                        "confidence": float(box.conf[0]),
+                        "bbox": [bx1 + x0, by1 + y0, bx2 + x0, by2 + y0],
+                    }
+                )
+
+    merged = _merge_tile_detections(raw, _TILE_MERGE_IOU)
+    for index, det in enumerate(merged):
+        det["det_index"] = index
+    return merged, width, height
+
+
+def _tile_origins(extent: int, tile_px: int, step: int) -> list[int]:
+    """Tile start offsets covering [0, extent), the last tile flush to the edge."""
+    if extent <= tile_px:
+        return [0]
+    origins = list(range(0, extent - tile_px + 1, step))
+    last = extent - tile_px
+    if origins[-1] != last:
+        origins.append(last)
+    return origins
+
+
+def _merge_tile_detections(detections: list[dict[str, Any]], iou_threshold: float) -> list[dict[str, Any]]:
+    """Class-aware greedy NMS: keep the highest-confidence box, drop same-class boxes
+    overlapping it above ``iou_threshold`` (the same physical part seen in two tiles)."""
+    kept: list[dict[str, Any]] = []
+    for det in sorted(detections, key=lambda d: d["confidence"], reverse=True):
+        if any(
+            other["class_name"] == det["class_name"]
+            and _xyxy_iou(other["bbox"], det["bbox"]) >= iou_threshold
+            for other in kept
+        ):
+            continue
+        kept.append(det)
+    return kept
+
+
+def _xyxy_iou(a: list[float], b: list[float]) -> float:
+    ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
+    ix2, iy2 = min(a[2], b[2]), min(a[3], b[3])
+    inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
+    if inter == 0:
+        return 0.0
+    area_a = max(0.0, a[2] - a[0]) * max(0.0, a[3] - a[1])
+    area_b = max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
 
 
 def inspect_expected_pieces_against_reference(
@@ -288,6 +421,177 @@ def inspect_expected_pieces_against_reference(
         "alignment": alignment,
         "overlay_image": overlay_image,
     }
+
+
+def inspect_expected_pieces_against_references(
+    family: str,
+    zone_id: str,
+    candidate_image_path: str | Path,
+    annotated_references: list[dict[str, Any]],
+    evidence_dir: str | Path | None = None,
+    min_support: int | None = None,
+    **diff_kwargs: Any,
+) -> dict[str, Any] | None:
+    """Per-part consensus across multiple annotated golden images.
+
+    ``annotated_references`` is ``[{"image_path": <local path>, "boxes":
+    [{element_id, class_name, bbox}]}]``. A canonical part set is the union of all
+    references' boxes (by ``element_id``); each reference then casts one vote per
+    part via the existing ECC-aligned per-ROI diff (``inspect_expected_pieces_
+    against_reference``). Votes are combined with a false-rejection-safe three-state
+    rule so a single bad/occluded golden can never silently approve a part:
+
+      • flagged ``missing`` by a strict majority of references → ``missing``;
+      • flagged by some but not a majority (or any inconclusive) → ``uncertain`` → review;
+      • flagged by none → ``present``.
+
+    Returns the pipeline-compatible piece_inspection dict, or ``None`` when no
+    reference could be compared (so the caller falls back to a coarser path).
+    """
+    refs = [r for r in annotated_references if r.get("image_path") and r.get("boxes")]
+    if not refs:
+        return None
+    canonical = _canonical_pieces_from_refs(refs)
+    if not canonical:
+        return None
+
+    votes: list[dict[str, dict[str, Any]]] = []
+    overlays: list[str] = []
+    for ref in refs:
+        try:
+            res = inspect_expected_pieces_against_reference(
+                family=family,
+                zone_id=zone_id,
+                image_path=candidate_image_path,
+                reference_image_path=ref["image_path"],
+                expected_pieces=canonical,
+                evidence_dir=evidence_dir,
+                **diff_kwargs,
+            )
+        except Exception:  # pragma: no cover - defensive
+            continue
+        if res.get("reason") in {"missing_dependency", "unreadable_reference_pair", "not_configured"}:
+            continue  # this reference could not be compared
+        votes.append(_piece_status_map(res, canonical))
+        if res.get("overlay_image"):
+            overlays.append(str(res["overlay_image"]))
+
+    if not votes:
+        return None
+
+    n_refs = len(votes)
+    required = min_support if min_support is not None else (n_refs // 2 + 1)
+    required = max(1, min(required, n_refs))
+
+    findings: list[dict[str, Any]] = []
+    missing = 0
+    uncertain = 0
+    for piece in canonical:
+        pid = piece["id"]
+        entries = [vote.get(pid, {"status": "present"}) for vote in votes]
+        miss_votes = [entry for entry in entries if entry["status"] == "missing"]
+        unc_votes = sum(1 for entry in entries if entry["status"] == "uncertain")
+        support = len(miss_votes)
+        bbox_normalized = next((entry.get("bbox_normalized") for entry in miss_votes if entry.get("bbox_normalized")), None)
+        # Prefer the tight localized change box (from a flagging reference) over the
+        # broad ROI polygon, so the reported region pinpoints the missing part.
+        region = _bbox_to_region(bbox_normalized) if bbox_normalized else _piece_region(piece)
+        if support >= required:
+            status = "missing"
+            missing += 1
+        elif support > 0 or unc_votes > 0:
+            status = "uncertain"
+            uncertain += 1
+        else:
+            status = "present"
+        finding = {
+            "piece_id": pid,
+            "class_name": piece["class_name"],
+            "status": status,
+            "confidence": round(support / n_refs, 4),
+            "region": region,
+            "support": support,
+            "support_ratio": round(support / n_refs, 3),
+            "uncertain_votes": unc_votes,
+            "method": "reference_consensus",
+        }
+        if bbox_normalized:
+            finding["bbox_normalized"] = bbox_normalized
+        findings.append(finding)
+
+    status = "correct" if (missing == 0 and uncertain == 0) else "review"
+    if missing:
+        message = f"{missing} pieza(s) faltante(s) confirmada(s) por ≥{required} de {n_refs} referencias."
+    elif uncertain:
+        message = "Cambios no concluyentes contra referencias; requiere revisión humana."
+    else:
+        message = "Todas las piezas presentes — confirmado contra todas las referencias."
+
+    return {
+        "status": status,
+        "reason": "reference_roi_consensus",
+        "message": message,
+        "findings": findings,
+        "missing_count": missing,
+        "uncertain_count": uncertain,
+        "reference_count": n_refs,
+        "required_support": required,
+        "overlay_image": overlays[0] if overlays else None,
+        "method": "reference_consensus",
+    }
+
+
+def _bbox_to_region(bbox: dict[str, float]) -> list[dict[str, float]]:
+    bx, by = float(bbox["x"]), float(bbox["y"])
+    bw, bh = float(bbox["width"]), float(bbox["height"])
+    return [
+        {"x": bx, "y": by},
+        {"x": bx + bw, "y": by},
+        {"x": bx + bw, "y": by + bh},
+        {"x": bx, "y": by + bh},
+    ]
+
+
+def _canonical_pieces_from_refs(refs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Union of all references' boxes keyed by element_id → expected-piece dicts."""
+    by_id: dict[str, dict[str, Any]] = {}
+    for ref in refs:
+        for box in ref.get("boxes") or []:
+            element_id = str(box.get("element_id") or box.get("class_name") or "piece")
+            if element_id in by_id:
+                continue
+            bbox = box.get("bbox")
+            if not (isinstance(bbox, list) and len(bbox) == 4):
+                continue
+            by_id[element_id] = {
+                "id": element_id,
+                "class_name": str(box.get("class_name") or "piece"),
+                "roi": [float(value) for value in bbox],
+                "required": True,
+            }
+    return list(by_id.values())
+
+
+def _piece_status_map(result: dict[str, Any], canonical: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """One reference's per-part verdict: piece_id → {status, bbox_normalized?}.
+
+    A part the single-reference diff did not flag is ``present`` in that reference;
+    localized changes (carried under ``expected_piece_id``) mark it ``missing``."""
+    statuses: dict[str, dict[str, Any]] = {piece["id"]: {"status": "present"} for piece in canonical}
+    for finding in result.get("findings", []):
+        pid = finding.get("expected_piece_id") or finding.get("piece_id")
+        if pid not in statuses:
+            continue
+        finding_status = finding.get("status")
+        if finding_status == "missing":
+            statuses[pid] = {
+                "status": "missing",
+                "bbox_normalized": finding.get("bbox_normalized"),
+                "confidence": finding.get("confidence", 0.0),
+            }
+        elif finding_status == "uncertain" and statuses[pid]["status"] == "present":
+            statuses[pid] = {"status": "uncertain"}
+    return statuses
 
 
 def transfer_annotations(
@@ -634,7 +938,12 @@ def _localized_changes(
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, close_kernel, iterations=2)
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    min_area = max(18.0, image_area * 0.000035)
+    # Size the minimum change relative to the (tight, per-part) ROI, not the whole
+    # 12 MP frame: image_area*0.000035 ≈ 427px² rejected a ~15px part (~225px²)
+    # before it could ever be flagged. The image-area term is kept only as an upper
+    # cap so a loose/whole-image ROI never gets a *lower* floor than before (safe:
+    # this can only make detection more sensitive, never less).
+    min_area = max(18.0, min(roi_area * 0.002, image_area * 0.000035))
     max_area = min(image_area * 0.075, roi_area * 0.22)
     changes: list[dict[str, Any]] = []
     for contour in contours:

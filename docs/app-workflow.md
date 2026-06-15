@@ -2,6 +2,10 @@
 
 This document describes the current working process of the app and the target flow for annotation-driven inspection.
 
+> For how a captured photo is actually scored (`correct` / `review` / `retake_photo`) — the
+> reference consensus, the trained-model agreement gate, small-part handling, and the
+> accuracy eval — see [inspection-pipeline.md](inspection-pipeline.md).
+
 ## Core Goal
 
 The app should let a user create a mold, collect training photos by section, annotate the visible pieces, train a model from those annotations, choose a golden sample for each section, and then validate a mold section by section using guided capture and missing-piece detection.

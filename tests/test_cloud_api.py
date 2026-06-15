@@ -357,6 +357,56 @@ def test_cloud_api_inspection_uses_reference_piece_diff_without_model(tmp_path: 
     assert body["overlay_image_uri"]
 
 
+def test_cloud_api_inspection_uses_annotated_reference_consensus(tmp_path: Path):
+    image_paths = _write_dataset_images(tmp_path)
+    settings = CloudSettings(
+        local_state_dir=tmp_path / "state",
+        model_registry_dir=tmp_path / "registry",
+        evidence_dir=tmp_path / "evidence",
+    )
+    client = TestClient(create_app(settings))
+    # Two annotated golden images of the zone + a faulty candidate.
+    ref_uploads = [
+        _upload_file(client, image_paths["ok"], "molde_demo", "zona_01_front", "annotation")
+        for _ in range(2)
+    ]
+    fault_upload = _upload_file(client, image_paths["fault"], "molde_demo", "zona_01_front", "inspection")
+    box = [0.30, 0.30, 0.70, 0.70]  # broad ROI covering the injected fault patch
+    for index, ref in enumerate(ref_uploads):
+        annotation = client.post(
+            "/v1/annotations",
+            json={
+                "image_id": f"golden_{index}",
+                "image_uri": ref["object_uri"],
+                "family": "molde_demo",
+                "zone_id": "zona_01_front",
+                "split": "train",
+                "annotations": [
+                    {"element_id": "part_a", "class_name": "piston", "bbox": box, "status": "present"}
+                ],
+            },
+        )
+        assert annotation.status_code == 200
+
+    inspection = client.post(
+        "/v1/inspections",
+        json={
+            "family": "molde_demo",
+            "zone_id": "zona_01_front",
+            "image_uri": fault_upload["object_uri"],
+            "mold_id": "molde_demo",
+        },
+    )
+    assert inspection.status_code == 200
+    body = inspection.json()
+    piece_inspection = body["result"]["piece_inspection"]
+    # The new multi-annotated-reference consensus path ran (not the CV fallback).
+    assert piece_inspection["method"] == "reference_consensus"
+    assert piece_inspection["reference_count"] == 2
+    assert body["status"] == "review"
+    assert all(_region_area(region) < 0.08 for region in body["missing_regions"])
+
+
 def test_cloud_api_annotations_create_yolo_dataset_and_train(tmp_path: Path):
     image_paths = _write_dataset_images(tmp_path)
     settings = CloudSettings(local_state_dir=tmp_path / "state", evidence_dir=tmp_path / "evidence")
@@ -398,10 +448,22 @@ def test_cloud_api_annotations_create_yolo_dataset_and_train(tmp_path: Path):
     assert dataset_body["box_count"] == 1
     root = Path(dataset_body["dataset_uri"].removeprefix("file://"))
     assert (root / "labels" / "train" / "000001.txt").read_text().startswith("0 0.325000 0.400000 0.250000 0.300000")
+    assert (root / "data.yaml").read_text().startswith("path: .\n")
+    manifest_text = (root / "manifest.csv").read_text()
+    assert "images/train/000001" in manifest_text
+    expected_record = client.get("/v1/zones/zona_01/expected?family=fam")
+    assert expected_record.status_code == 200
+    assert expected_record.json()[0]["id"] == "bloque_ref_01"
+    assert expected_record.json()[0]["class_name"] == "block"
+    assert expected_record.json()[0]["roi"] == [0.2, 0.25, 0.45, 0.55]
 
     training = client.post("/v1/inspector-training-jobs", json={"family": "fam", "zone_id": "zona_01", "dataset_id": dataset_body["id"]})
     assert training.status_code == 200
-    assert training.json()["status"] == "queued"
+    training_body = training.json()
+    assert training_body["status"] == "queued"
+    assert "--data-yaml-uri" in training_body["training_command"]
+    assert "--yolo-image-size" in training_body["training_command"]
+    assert any(candidate["artifact_type"] == "yolo_piece_detector" for candidate in training_body["candidates"])
     model_version = client.get("/v1/model_versions/best_fam_zona_01")
     assert model_version.status_code == 200
     model_body = model_version.json()

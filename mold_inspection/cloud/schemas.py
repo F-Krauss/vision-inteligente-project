@@ -483,9 +483,13 @@ class InspectorTrainingJobCreateRequest(BaseModel):
     zone_id: str
     dataset_id: str | None = None
     dataset_uri: str | None = None
+    data_yaml_uri: str | None = None
     manifest_uri: str | None = None
     mask_uri: str | None = None
     target: Literal["cloud-gpu"] = "cloud-gpu"
+    yolo_base_model: str = "yolo11s.pt"
+    yolo_epochs: int = 80
+    yolo_image_size: int = 1280
     notes: str | None = None
 
 
@@ -496,8 +500,10 @@ class InspectorTrainingJobRecord(BaseModel):
     zone_id: str
     dataset_id: str | None = None
     dataset_uri: str | None = None
+    data_yaml_uri: str | None = None
     manifest_uri: str | None = None
     mask_uri: str | None = None
+    vertex_job_name: str | None = None
     target: str = "cloud-gpu"
     status: str = "queued"
     message: str

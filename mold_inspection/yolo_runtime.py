@@ -8,14 +8,27 @@ from .decision import inspect_zone
 from .models import Box, Detection, InspectionConfig
 
 
-def train_yolo(data_yaml: str | Path, weights: str = "yolo11n.pt", epochs: int = 80, image_size: int = 960) -> None:
+# Defaults tuned for tiny parts (~15px on ~4032px frames): a larger backbone than
+# nano and a 1280 training size that matches inference (see piece_inspector
+# PIECE_DETECTOR_IMGSZ). Override per zone via the train CLI / training request.
+def train_yolo(
+    data_yaml: str | Path,
+    weights: str = "yolo11s.pt",
+    epochs: int = 80,
+    image_size: int = 1280,
+    project: str | Path | None = None,
+    name: str = "piece_detector",
+) -> None:
     try:
         from ultralytics import YOLO
     except ImportError as exc:
         raise RuntimeError('Install vision dependencies: python -m pip install -e ".[vision]"') from exc
 
     model = YOLO(weights)
-    model.train(data=str(data_yaml), epochs=epochs, imgsz=image_size)
+    kwargs = {"data": str(data_yaml), "epochs": epochs, "imgsz": image_size}
+    if project is not None:
+        kwargs.update({"project": str(project), "name": name, "exist_ok": True})
+    model.train(**kwargs)
 
 
 def inspect_images(
