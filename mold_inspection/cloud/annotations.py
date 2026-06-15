@@ -359,22 +359,13 @@ def _draft_from_template_model(
         return None
     drafts: list[PieceAnnotationPayload] = []
     for index, item in enumerate(payload.get("boxes") or [], start=1):
-        if item.get("status", "present") not in {"present", "uncertain"}:
-            continue
-        bbox = item.get("bbox")
-        if not isinstance(bbox, list) or len(bbox) != 4:
-            continue
-        class_name = str(item.get("class_name") or "piece")
-        drafts.append(
-            PieceAnnotationPayload(
-                id=f"auto_model_{index:03d}",
-                element_id=str(item.get("element_id") or class_name),
-                class_name=class_name,
-                bbox=[_clip(value) for value in bbox],
-                status="present",
-                notes=f"auto_draft_model:{model_version.get('id')}",
-            )
+        draft = _draft_from_annotation_item(
+            item,
+            draft_id=f"auto_model_{index:03d}",
+            note=f"auto_draft_model:{model_version.get('id')}",
         )
+        if draft:
+            drafts.append(draft)
     if not drafts:
         return None
     return AutoAnnotationDraftResponse(
@@ -403,22 +394,13 @@ def _draft_from_latest_annotation(
     template = templates[-1]
     drafts: list[PieceAnnotationPayload] = []
     for index, item in enumerate(template.get("annotations") or [], start=1):
-        if item.get("status", "present") not in {"present", "uncertain"}:
-            continue
-        bbox = item.get("bbox")
-        if not isinstance(bbox, list) or len(bbox) != 4:
-            continue
-        class_name = str(item.get("class_name") or "piece")
-        drafts.append(
-            PieceAnnotationPayload(
-                id=f"auto_template_{index:03d}",
-                element_id=str(item.get("element_id") or class_name),
-                class_name=class_name,
-                bbox=[_clip(value) for value in bbox],
-                status="present",
-                notes=f"auto_draft_template:{template.get('id')}",
-            )
+        draft = _draft_from_annotation_item(
+            item,
+            draft_id=f"auto_template_{index:03d}",
+            note=f"auto_draft_template:{template.get('id')}",
         )
+        if draft:
+            drafts.append(draft)
     if not drafts:
         return None
     return AutoAnnotationDraftResponse(
@@ -449,6 +431,38 @@ def _drafts_from_expected_rois(request: AutoAnnotationDraftRequest, store: Metad
             )
         )
     return drafts
+
+
+def _draft_from_annotation_item(item: dict[str, Any], draft_id: str, note: str) -> PieceAnnotationPayload | None:
+    if item.get("status", "present") not in {"present", "uncertain"}:
+        return None
+    bbox = item.get("bbox")
+    if not isinstance(bbox, list) or len(bbox) != 4:
+        return None
+    polygon = item.get("polygon")
+    normalized_polygon = None
+    if isinstance(polygon, list):
+        normalized_polygon = [
+            [_clip(point[0]), _clip(point[1])]
+            for point in polygon
+            if isinstance(point, list) and len(point) == 2
+        ]
+        if len(normalized_polygon) < 3:
+            normalized_polygon = None
+    class_name = str(item.get("class_name") or "piece")
+    return PieceAnnotationPayload(
+        id=draft_id,
+        element_id=str(item.get("element_id") or item.get("id") or class_name),
+        class_name=class_name,
+        bbox=[_clip(value) for value in bbox],
+        status="present",
+        notes=note,
+        shape="rect" if item.get("shape") == "rect" else "polygon",
+        polygon=normalized_polygon,
+        category_id=item.get("category_id"),
+        category_name=item.get("category_name"),
+        importance=item.get("importance") if item.get("importance") in {"critical", "relevant", "minor"} else None,
+    )
 
 
 def _resolve_model_version(request: AutoAnnotationDraftRequest, store: MetadataStore) -> dict[str, Any] | None:

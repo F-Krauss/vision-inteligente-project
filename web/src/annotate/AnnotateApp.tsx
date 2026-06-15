@@ -40,6 +40,9 @@ type ReviewDraft = {
   slot: "compareA" | "compareB";
   elements: AnnElement[];
   approved: boolean;
+  source: "alignment" | "auto_draft" | "copy";
+  alignmentConfidence: number;
+  message: string;
 };
 
 type Props = {
@@ -70,8 +73,7 @@ export default function AnnotateApp({ onExit, initialMoldName }: Props) {
 
   const activeSection = project.sections.find((section) => section.id === activeSectionId) ?? project.sections[0];
   const activeAsset = activeSection?.[activeSlot];
-  const completeSections = project.sections.filter((section) => section.reference?.url && section.compareA?.url && section.compareB?.url).length;
-  const canAnnotate = completeSections > 0;
+  const canAnnotate = project.sections.some((section) => section.reference?.url);
   const annotationKey = keyFor(activeSection?.id ?? "", activeSlot);
   const evaluationZone = activeSection ? evaluationZones[activeSection.id] ?? null : null;
   const sectionReferenceCount = annotations[keyFor(activeSection?.id ?? "", "reference")]?.length ?? 0;
@@ -79,7 +81,11 @@ export default function AnnotateApp({ onExit, initialMoldName }: Props) {
     const hasReferenceAnnotations = (annotations[keyFor(section.id, "reference")] ?? []).length > 0;
     return !hasReferenceAnnotations || (evaluationZones[section.id]?.length ?? 0) >= 3;
   });
-  const canVerify = Object.values(annotations).flat().length > 0 && allAnnotatedZonesReady;
+  const canVerify = project.sections.some((section) => {
+    const hasReferenceAnnotations = (annotations[keyFor(section.id, "reference")] ?? []).length > 0;
+    const hasTargets = (["compareA", "compareB"] as const).some((slot) => Boolean(section[slot]?.url));
+    return hasReferenceAnnotations && hasTargets;
+  }) && allAnnotatedZonesReady;
 
   const totals = useMemo(() => {
     const all = Object.values(annotations).flat();
@@ -165,19 +171,40 @@ export default function AnnotateApp({ onExit, initialMoldName }: Props) {
     setSaving(true);
     setError("");
     setNotice("");
-    setAnnotations((current) => ({ ...current, [annotationKey]: elements }));
     try {
+      const activeDraft = activeSlot === "reference"
+        ? null
+        : reviewDrafts.find((draft) => draft.sectionId === activeSection.id && draft.slot === activeSlot && !draft.approved);
+      if (activeDraft) {
+        setAnnotations((current) => ({ ...current, [annotationKey]: elements }));
+        setReviewDrafts((current) => current.map((draft) => (
+          draft.sectionId === activeSection.id && draft.slot === activeSlot
+            ? { ...draft, elements, approved: false, message: "Editado, pendiente de aprobar." }
+            : draft
+        )));
+        setNotice(`Borrador actualizado: ${elements.length} pieza(s).`);
+        setMode("review");
+        return;
+      }
+
       let uri = activeAsset.uri;
       if (!uri && activeAsset.file) {
         uri = await uploadSystemFile(activeAsset.file, project.id, activeSection.id, "annotation");
         patchAssetUri(activeSection.id, activeSlot, uri);
       }
       if (uri) {
+        if (activeSlot === "reference") {
+          await postJson(`/v1/zones/${encodeURIComponent(activeSection.id)}/reference`, {
+            family: project.id,
+            image_uri: uri,
+            reference_id: "golden_sample",
+          }).catch(() => undefined);
+        }
         await postJson("/v1/annotations", {
           image_uri: uri,
           family: project.id,
           zone_id: activeSection.id,
-          split: "train",
+          split: activeSlot === "reference" ? "train" : "val",
           annotations: elements.map(toPayload),
           metadata: {
             mold_name: project.name,
@@ -187,7 +214,16 @@ export default function AnnotateApp({ onExit, initialMoldName }: Props) {
           },
         });
       }
+      setAnnotations((current) => ({ ...current, [annotationKey]: elements }));
       setNotice(`Guardado: ${elements.length} pieza(s).`);
+      if (activeSlot === "reference") {
+        const drafts = await mapSection(activeSection.id, elements);
+        if (drafts.length) {
+          upsertReviewDrafts(drafts);
+          setNotice(`Guardado. ${drafts.length} golden(s) auto-anotado(s) para revisar.`);
+          setMode("review");
+        }
+      }
     } catch (e) {
       setError(messageFrom(e));
     } finally {
@@ -230,58 +266,114 @@ export default function AnnotateApp({ onExit, initialMoldName }: Props) {
     for (const section of project.sections) {
       const source = annotations[keyFor(section.id, "reference")] ?? [];
       if (!source.length) continue;
-      const slots = (["compareA", "compareB"] as const).filter((slot) => section[slot]?.url);
-      if (!slots.length) continue;
-
-      let mapped: Array<{ slot: "compareA" | "compareB"; elements: AnnElement[] }> | null = null;
-      try {
-        const referenceUri = await ensureAssetUri(section.id, "reference");
-        const targets: Array<{ slot: "compareA" | "compareB"; uri: string }> = [];
-        for (const slot of slots) {
-          const uri = await ensureAssetUri(section.id, slot);
-          if (uri) targets.push({ slot, uri });
-        }
-        if (referenceUri && targets.length) {
-          const response = await postJson("/v1/annotations/transfer", {
-            reference_image_uri: referenceUri,
-            target_image_uris: targets.map((t) => t.uri),
-            annotations: source.map(toPayload),
-          });
-          const results = Array.isArray(response?.results) ? response.results : [];
-          mapped = targets.map((target, index) => {
-            const result = results[index];
-            const ok = result?.ok && Array.isArray(result?.annotations);
-            const note = ok
-              ? `Mapeado (alineación ${Math.round((result.alignment_confidence ?? 0) * 100)}%)`
-              : "Alineación baja: revisa manualmente";
-            const elements = ok && result.annotations.length
-              ? result.annotations.map((p: unknown) => fromPayload(p, note))
-              : source.map((element) => ({ ...element, id: newId("map"), notes: note }));
-            return { slot: target.slot, elements };
-          });
-        }
-      } catch {
-        mapped = null; // backend unreachable → fall back to a direct copy below
-      }
-
-      if (!mapped) {
-        mapped = slots.map((slot) => ({
-          slot,
-          elements: source.map((element) => ({ ...element, id: newId("map"), notes: element.notes || "Copia directa (sin alinear)" })),
-        }));
-      }
-      for (const entry of mapped) drafts.push({ sectionId: section.id, slot: entry.slot, approved: false, elements: entry.elements });
+      drafts.push(...await mapSection(section.id, source));
     }
     setReviewDrafts(drafts);
     setMode("review");
     setNotice("");
   }
 
+  async function mapSection(sectionId: string, source: AnnElement[]): Promise<ReviewDraft[]> {
+    const section = project.sections.find((item) => item.id === sectionId);
+    if (!section?.reference?.url || !source.length) return [];
+    const slots = (["compareA", "compareB"] as const).filter((slot) => section[slot]?.url);
+    if (!slots.length) return [];
+
+    const referenceUri = await ensureAssetUri(section.id, "reference");
+    const targets: Array<{ slot: "compareA" | "compareB"; uri: string }> = [];
+    for (const slot of slots) {
+      const uri = await ensureAssetUri(section.id, slot);
+      if (uri) targets.push({ slot, uri });
+    }
+    if (!referenceUri || !targets.length) return [];
+
+    const transferByUri = new Map<string, any>();
+    try {
+      const response = await postJson("/v1/annotations/transfer", {
+        reference_image_uri: referenceUri,
+        target_image_uris: targets.map((target) => target.uri),
+        annotations: source.map(toPayload),
+      });
+      const results = Array.isArray(response?.results) ? response.results : [];
+      for (const result of results) {
+        if (result?.image_uri) transferByUri.set(String(result.image_uri), result);
+      }
+    } catch {
+      transferByUri.clear();
+    }
+
+    const drafts: ReviewDraft[] = [];
+    for (const target of targets) {
+      const transfer = transferByUri.get(target.uri);
+      const ok = Boolean(transfer?.ok && Array.isArray(transfer?.annotations) && transfer.annotations.length);
+      if (ok) {
+        const confidence = Number(transfer.alignment_confidence ?? 0);
+        const note = `Mapeado (alineación ${Math.round(confidence * 100)}%)`;
+        drafts.push({
+          sectionId,
+          slot: target.slot,
+          approved: false,
+          elements: transfer.annotations.map((payload: unknown) => fromPayload(payload, note)),
+          source: "alignment",
+          alignmentConfidence: confidence,
+          message: note,
+        });
+        continue;
+      }
+
+      const autoDraft = await autoDraftForTarget(sectionId, target.uri);
+      if (autoDraft.length) {
+        drafts.push({
+          sectionId,
+          slot: target.slot,
+          approved: false,
+          elements: autoDraft,
+          source: "auto_draft",
+          alignmentConfidence: 0,
+          message: "Borrador automático. Revisa antes de aprobar.",
+        });
+        continue;
+      }
+
+      drafts.push({
+        sectionId,
+        slot: target.slot,
+        approved: false,
+        elements: source.map((element) => ({ ...element, id: newId("map"), notes: element.notes || "Copia directa (sin alinear)" })),
+        source: "copy",
+        alignmentConfidence: 0,
+        message: "Copia directa. Ajusta manualmente antes de aprobar.",
+      });
+    }
+    return drafts;
+  }
+
+  async function autoDraftForTarget(sectionId: string, imageUri: string): Promise<AnnElement[]> {
+    try {
+      const response = await postJson("/v1/annotations/auto-draft", {
+        family: project.id,
+        zone_id: sectionId,
+        image_uri: imageUri,
+      }) as { annotations?: unknown[]; message?: string };
+      const note = response.message || "Borrador automático";
+      return Array.isArray(response.annotations) ? response.annotations.map((payload) => fromPayload(payload, note)) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function upsertReviewDrafts(drafts: ReviewDraft[]) {
+    setReviewDrafts((current) => {
+      const next = current.filter((existing) => !drafts.some((draft) => draft.sectionId === existing.sectionId && draft.slot === existing.slot));
+      return [...next, ...drafts];
+    });
+  }
+
   async function approveDraft(sectionId: string, slot: "compareA" | "compareB") {
-    setReviewDrafts((current) => current.map((draft) => draft.sectionId === sectionId && draft.slot === slot ? { ...draft, approved: true } : draft));
     const draft = reviewDrafts.find((item) => item.sectionId === sectionId && item.slot === slot);
     if (!draft) return;
     setAnnotations((current) => ({ ...current, [keyFor(sectionId, slot)]: draft.elements }));
+    setReviewDrafts((current) => current.map((item) => item.sectionId === sectionId && item.slot === slot ? { ...item, approved: true } : item));
     // Persist the mapped annotations as extra labeled training data (val split).
     try {
       const uri = await ensureAssetUri(sectionId, slot);
@@ -301,6 +393,7 @@ export default function AnnotateApp({ onExit, initialMoldName }: Props) {
           },
         });
       }
+      setNotice(`Aprobado: ${draft.elements.length} pieza(s).`);
     } catch (e) {
       setError(messageFrom(e)); // keep the local approval even if persistence fails
     }
@@ -308,6 +401,11 @@ export default function AnnotateApp({ onExit, initialMoldName }: Props) {
 
   function discardDraft(sectionId: string, slot: "compareA" | "compareB") {
     setReviewDrafts((current) => current.filter((draft) => !(draft.sectionId === sectionId && draft.slot === slot)));
+    setAnnotations((current) => {
+      const next = { ...current };
+      delete next[keyFor(sectionId, slot)];
+      return next;
+    });
   }
 
   function editDraft(sectionId: string, slot: "compareA" | "compareB") {
@@ -328,7 +426,7 @@ export default function AnnotateApp({ onExit, initialMoldName }: Props) {
           <div className="annTopMark"><Layers3 size={17} /></div>
           <div>
             <strong>{project.name || "Nuevo molde"}</strong>
-            <span>{mode === "review" ? "Revisión de mapeo" : "Anotación para auto-etiquetado"}</span>
+            <span>{mode === "review" ? "Revisión de goldens auto-anotados" : "Anotación manual y asistida"}</span>
           </div>
         </div>
         <div className="annTopActions">
@@ -355,7 +453,7 @@ export default function AnnotateApp({ onExit, initialMoldName }: Props) {
           <span className="annRailIcon"><Layers3 size={16} /></span>
           <div>
             <strong>Moldes</strong>
-            <small>Set de entrenamiento</small>
+            <small>Goldens y anotaciones</small>
           </div>
         </div>
 
@@ -395,7 +493,7 @@ export default function AnnotateApp({ onExit, initialMoldName }: Props) {
         </div>
 
         <button className="annRailAction" type="button" disabled={!canAnnotate} onClick={startAnnotating}>
-          <ChevronRight size={15} /> Anotar imagenes
+          <ChevronRight size={15} /> Anotar goldens
         </button>
       </aside>
 
@@ -472,12 +570,12 @@ function SetupBoard({
         ))}
       </div>
       <div className="annUploadGrid">
-        <UploadTile title="Referencia" asset={section.reference} onFile={(file) => onFile(section.id, "reference", file)} />
-        <UploadTile title="Comparación A" asset={section.compareA} onFile={(file) => onFile(section.id, "compareA", file)} />
-        <UploadTile title="Comparación B" asset={section.compareB} onFile={(file) => onFile(section.id, "compareB", file)} />
+        <UploadTile title="Golden base" asset={section.reference} onFile={(file) => onFile(section.id, "reference", file)} />
+        <UploadTile title="Golden 2" asset={section.compareA} onFile={(file) => onFile(section.id, "compareA", file)} />
+        <UploadTile title="Golden 3" asset={section.compareB} onFile={(file) => onFile(section.id, "compareB", file)} />
       </div>
       <button className="annStartButton" type="button" disabled={!canStart} onClick={onStart}>
-        <Upload size={16} /> Anotar imagenes
+        <Upload size={16} /> Anotar goldens
       </button>
     </div>
   );
@@ -562,7 +660,7 @@ function ReviewBoard({
             <div className="annReviewHead">
               <div>
                 <strong>{section.name} · {slotLabel(draft.slot)}</strong>
-                <span>{draft.elements.length} anotaciones digitales</span>
+                <span>{draft.elements.length} anotaciones · {draftLabel(draft)}</span>
               </div>
               {draft.approved ? <span className="annApproved"><Check size={13} /> Aprobado</span> : null}
             </div>
@@ -583,13 +681,19 @@ function ReviewBoard({
             <div className="annReviewActions">
               <button type="button" onClick={() => onEdit(draft.sectionId, draft.slot)}><Plus size={13} /> Editar</button>
               <button type="button" onClick={() => onDiscard(draft.sectionId, draft.slot)}><RotateCcw size={13} /> Descartar</button>
-              <button type="button" className="primary" onClick={() => onApprove(draft.sectionId, draft.slot)}><CopyCheck size={13} /> Aprobar</button>
+              <button type="button" className="primary" onClick={() => onApprove(draft.sectionId, draft.slot)} disabled={draft.approved}><CopyCheck size={13} /> Aprobar</button>
             </div>
           </article>
         );
       })}
     </div>
   );
+}
+
+function draftLabel(draft: ReviewDraft): string {
+  if (draft.source === "alignment") return `alineación ${Math.round(draft.alignmentConfidence * 100)}%`;
+  if (draft.source === "auto_draft") return "auto";
+  return "copia";
 }
 
 function initialProject(): MoldProject {
@@ -649,14 +753,14 @@ function keyFor(sectionId: string, slot: ImageSlot): string {
 }
 
 function slotLabel(slot: ImageSlot): string {
-  if (slot === "reference") return "Referencia";
-  if (slot === "compareA") return "Comparación A";
-  return "Comparación B";
+  if (slot === "reference") return "Golden base";
+  if (slot === "compareA") return "Golden 2";
+  return "Golden 3";
 }
 
 function sectionReadyLabel(section: MoldSectionDraft): string {
   const count = [section.reference, section.compareA, section.compareB].filter((asset) => asset?.url).length;
-  return `${count}/3 imágenes`;
+  return `${count}/3 goldens`;
 }
 
 function toCategory(record: unknown): Category | null {

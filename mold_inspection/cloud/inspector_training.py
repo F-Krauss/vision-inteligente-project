@@ -297,6 +297,11 @@ def _latest_annotation_boxes(store: MetadataStore, family: str, zone_id: str) ->
                 "class_name": class_name,
                 "bbox": [max(0.0, min(1.0, float(value))) for value in bbox],
                 "status": str(item.get("status") or "present"),
+                "shape": "rect" if item.get("shape") == "rect" else "polygon",
+                "polygon": item.get("polygon") if isinstance(item.get("polygon"), list) else None,
+                "category_id": item.get("category_id"),
+                "category_name": item.get("category_name"),
+                "importance": item.get("importance") if item.get("importance") in {"critical", "relevant", "minor"} else None,
                 "source_annotation_id": str(source.get("id") or ""),
             }
         )

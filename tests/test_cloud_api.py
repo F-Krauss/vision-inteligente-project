@@ -523,6 +523,50 @@ def test_cloud_api_auto_annotation_draft_reuses_latest_zone_annotation(tmp_path:
     assert body["annotations"][0]["notes"].startswith("auto_draft_template:")
 
 
+def test_cloud_api_auto_annotation_draft_preserves_manual_shape_fields(tmp_path: Path):
+    image_paths = _write_dataset_images(tmp_path)
+    settings = CloudSettings(local_state_dir=tmp_path / "state", evidence_dir=tmp_path / "evidence")
+    client = TestClient(create_app(settings))
+    template_upload = _upload_file(client, image_paths["ok"], "fam", "zona_01", "annotation")
+    new_upload = _upload_file(client, image_paths["fault"], "fam", "zona_01", "annotation")
+
+    saved = client.post(
+        "/v1/annotations",
+        json={
+            "image_uri": template_upload["object_uri"],
+            "family": "fam",
+            "zone_id": "zona_01",
+            "split": "train",
+            "annotations": [
+                {
+                    "element_id": "part_poly",
+                    "class_name": "clip",
+                    "bbox": [0.1, 0.2, 0.4, 0.5],
+                    "status": "present",
+                    "shape": "polygon",
+                    "polygon": [[0.1, 0.2], [0.38, 0.22], [0.4, 0.48], [0.12, 0.5]],
+                    "category_id": "cat_clip",
+                    "category_name": "Clip",
+                    "importance": "critical",
+                }
+            ],
+        },
+    )
+    assert saved.status_code == 200
+
+    draft = client.post(
+        "/v1/annotations/auto-draft",
+        json={"family": "fam", "zone_id": "zona_01", "image_uri": new_upload["object_uri"]},
+    )
+    assert draft.status_code == 200
+    annotation = draft.json()["annotations"][0]
+    assert annotation["shape"] == "polygon"
+    assert annotation["polygon"] == [[0.1, 0.2], [0.38, 0.22], [0.4, 0.48], [0.12, 0.5]]
+    assert annotation["category_id"] == "cat_clip"
+    assert annotation["category_name"] == "Clip"
+    assert annotation["importance"] == "critical"
+
+
 def test_cloud_api_segmenter_dataset_from_annotations(tmp_path: Path):
     image_paths = _write_dataset_images(tmp_path)
     settings = CloudSettings(local_state_dir=tmp_path / "state", evidence_dir=tmp_path / "evidence")
